@@ -1,0 +1,13 @@
+diff --git a/Bluetooth/LibreTransmitterMetadata.swift b/Bluetooth/LibreTransmitterMetadata.swift
+index dfe50db..dfea6c9 100644
+--- a/Bluetooth/LibreTransmitterMetadata.swift
++++ b/Bluetooth/LibreTransmitterMetadata.swift
+@@ -110,7 +110,7 @@ public enum SensorType: String, CustomStringConvertible {
+         case 0xDF, 0xA2: self = .libre1
+         case 0xE5, 0xE6: self = .libreUS14day
+         case 0x70: self = .libreProH
+-        case 0xC5, 0x9D, 0xC6, 0x7F: self = .libre2
++        case 0xC5, 0x9D, 0xC6, 0x7F, 0x2B: self = .libre2 // 0x2B = Brazilian Libre 2/2+ (patchInfo e.g. 2B 0A 3A 08 1F E1)
+         case 0x76: self = patchInfo[3] == 0x02 ? .libre2US : patchInfo[3] == 0x04 ? .libre2CA : patchInfo[2] >> 4 == 7 ? .libreSense : .unknown
+         default:
+             if patchInfo.count == 24 {
