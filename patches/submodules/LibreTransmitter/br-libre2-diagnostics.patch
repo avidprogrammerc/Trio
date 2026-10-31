@@ -1,0 +1,20 @@
+diff --git a/LibreSensor/SensorPairing/SensorPairingService.swift b/LibreSensor/SensorPairing/SensorPairingService.swift
+index ce31cd4..b03782a 100644
+--- a/LibreSensor/SensorPairing/SensorPairingService.swift
++++ b/LibreSensor/SensorPairing/SensorPairingService.swift
+@@ -185,13 +185,13 @@ public class SensorPairingService: NSObject, NFCTagReaderSessionDelegate, Sensor
+ 
+                                         guard sensorUID.count == 8 && patchInfo.count == 6 && fram.count == 344 else {
+                                             // self.readingsSubject.send(completion: .failure(LibreError.noSensorData))
+-                                            session.invalidate(errorMessage: PairingError.noSensorData.localizedDescription)
++                                            session.invalidate(errorMessage: PairingError.noSensorData.localizedDescription + " (uid=\(sensorUID.hexEncodedString()) patchInfo=\(patchHex) fram=\(fram.count))")
+                                             self.sendError(PairingError.noSensorData)
+                                             return
+                                         }
+                                         
+                                         guard sensorType == .libre2  else {
+-                                            session.invalidate(errorMessage: PairingError.wrongSensorType.localizedDescription)
++                                            session.invalidate(errorMessage: PairingError.wrongSensorType.localizedDescription + " (uid=\(sensorUID.hexEncodedString()) patchInfo=\(patchHex) type=\(sensorType))")
+                                             self.sendError(PairingError.noSensorData)
+                                             return
+                                         }

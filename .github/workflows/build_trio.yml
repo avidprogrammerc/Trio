@@ -236,6 +236,8 @@ jobs:
           # Brazilian Libre 2/2+ support: accept patchInfo header 0x2B as Libre 2
           # (applies to the LibreTransmitter submodule; validated against pinned commit 4110512)
           git apply ./patches/submodules/LibreTransmitter/br-libre2-patchinfo.patch --directory=LibreTransmitter -v --whitespace=fix
+          # Diagnostics: include uid/patchInfo/fram details in the NFC pairing failure alert
+          git apply ./patches/submodules/LibreTransmitter/br-libre2-diagnostics.patch --directory=LibreTransmitter -v --whitespace=fix
 
           # Add patches for additional customization by following the templates above,
           # and make sure to specify the submodule by setting "--directory=(submodule_name)".
