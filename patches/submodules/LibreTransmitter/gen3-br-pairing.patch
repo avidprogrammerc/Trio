@@ -129,23 +129,24 @@ index 0000000..77e9a5d
 +// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
 diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 new file mode 100644
-index 0000000..b1722f2
+index 0000000..afbd3b8
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
-@@ -0,0 +1,217 @@
+@@ -0,0 +1,176 @@
 +//
 +//  Gen3Ceremony.swift
 +//  LibreTransmitter
 +//
 +//  Pairing ceremony for the 2026 "Gen3" secure sensors (BR Libre 2+, patchInfo 0x2B).
 +//
-+//  These sensors are ISO 15693 Type-4 tags: they speak ISO 7816 APDUs, not T5T memory.
-+//  Evidence (Android oracle, Nov 2026): engine dispatcher words are APDU headers —
-+//  P2 word 0x1928 with args 001f and the 25-byte challenge as data returns the 15-byte
-+//  auth response 0000001f||head7||tail8; the session opens with SELECT AID A03B0100000000000000.
++//  These sensors answer on the ISO 15693 vendor command 0xA1 engine channel (the same door
++//  patchInfo reads already use successfully). Android ground truth (oracle captures +
++//  Gen2SecurityInterfaceSkb smali): air frames are [flag][0xA1][sub-opcode][args][data];
++//  the auth step is dispatcher word 0x1928 with args 001f carrying the 25-byte challenge,
++//  and the tag replies 0000001f || head7 || tail8 (19 bytes).
 +//
-+//  Law (validated on 186+ vectors): tail8 = K ⊕ (rand<<8) ⊕ F(rand[7]) — used only to
-+//  LEARN K on first pairing (mirror test); the sensor checks itself, we echo its challenge.
++//  Law (validated on 186+ vectors): tail8 = K ⊕ (rand<<8) ⊕ F(rand[7]) — used to LEARN K on
++//  first pairing (mirror test). The sensor validates its own challenge, so we echo verbatim.
 +//
 +
 +import Foundation
@@ -166,7 +167,8 @@ index 0000000..b1722f2
 +
 +    private static let log = Logger(subsystem: "com.trio.libretransmitter.gen3", category: "ceremony")
 +
-+    /// Persistent, selectable alert via runtime message send (extension-safe contexts forbid UIApplication.shared).
++    /// Persistent, selectable alert (UIApplication.shared is compile-banned in extension-safe
++    /// contexts, so we message it dynamically).
 +    static func present(_ text: String) {
 +        log.log("ceremony: \(text, privacy: .public)")
 +        UserDefaults.standard.set(text, forKey: "Gen3LastDiagnostics")
@@ -186,23 +188,10 @@ index 0000000..b1722f2
 +        }
 +    }
 +
-+    // MARK: - APDU helpers
-+
-+    private struct APDU: CustomStringConvertible {
-+        let cla: UInt8; let ins: UInt8; let p1: UInt8; let p2: UInt8; let data: Data
-+        func bytes(le: Bool) -> Data {
-+            var d = Data([cla, ins, p1, p2])
-+            if !data.isEmpty { d.append(UInt8(data.count)); d.append(data) }
-+            if le { d.append(0x00) }
-+            return d
-+        }
-+        var description: String { "\(Hex(cla)) \(Hex(ins)) \(Hex(p1)) \(Hex(p2)) [\(Hex(data.count))B]" }
-+    }
 +    private static func Hex(_ b: UInt8) -> String { String(format: "%02X", b) }
-+    private static func Hex(_ n: Int) -> String { String(format: "%02X", n) }
 +    private static func hex(_ d: Data) -> String { d.map { String(format: "%02x", $0) }.joined() }
 +
-+    /// Challenge fingerprint: 25 bytes with six zero bytes at offset 8 (rand8||0x00×6||sig7||ctr2||crc2).
++    /// Challenge fingerprint: 25 bytes, six zero bytes at offset 8: rand8||0x00×6||sig7||ctr2||crc2.
 +    private static func findChallenge(in blob: Data) -> Data? {
 +        guard blob.count >= 25 else { return nil }
 +        let zeros = Data([0, 0, 0, 0, 0, 0])
@@ -216,102 +205,85 @@ index 0000000..b1722f2
 +        return nil
 +    }
 +
-+    // Challenge-read APDU ladder (fingerprint decides the winner):
-+    // standard T4T reads against plausible file ids, plus the observed proprietary family.
-+    private static let challengeReads: [APDU] = [
-+        APDU(cla: 0x00, ins: 0xB1, p1: 0x00, p2: 0x00, data: Data()),           // READ BINARY (even addr) + Le
-+        APDU(cla: 0x00, ins: 0xB1, p1: 0x00, p2: 0x19, data: Data()),           // READ BINARY, 25B via P2
-+        APDU(cla: 0x00, ins: 0xA4, p1: 0x04, p2: 0x00, data: Data(hexString: "A03B0100000000000000")!), // SELECT Libre AID
-+        APDU(cla: 0x19, ins: 0x00, p1: 0x00, p2: 0x00, data: Data()),           // proprietary get-challenge
-+        APDU(cla: 0x00, ins: 0xB0, p1: 0x80, p2: 0x00, data: Data()),           // READ BINARY high offset
-+        APDU(cla: 0x84, ins: 0x84, p1: 0x00, p2: 0x00, data: Data()),           // ISO GET CHALLENGE
++    private static let vendor: UInt8 = 0xA1   // engine channel (patchInfo door, proven open)
++    private static let select: UInt8 = 0xA0   // applet select door
++
++    // Challenge-hunt probes: [sub-opcode] candidates over the engine channel.
++    private static let challengeReads: [(code: UInt8, prefix: Data)] = [
++        (vendor, Data([0x00])),                          // get-challenge?
++        (vendor, Data([0x19, 0x00])),                    // dispatcher-word-shaped
++        (vendor, Data()),                                // bare channel (how patchInfo answers)
++        (vendor, Data([0x19, 0x08])),                    // 0x1908 sibling seen in captures
++        (vendor, Data([0x00, 0x1F])),                    // auth-shaped read
++        (select, Data([0x3B, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])), // Libre AID
 +    ]
 +
-+    /// Runs: [SELECT] → challenge ladder → auth (19 28 00 1F || challenge). completion always called.
++    // Auth frame candidates: engine frame for P2 0x1928 args 001f, prefix shapes derived from smali.
++    private static let authFrames: [(code: UInt8, prefix: Data)] = [
++        (vendor, Data([0x28, 0x00, 0x1F])),              // INS + args (engine-style)
++        (vendor, Data([0x19, 0x28, 0x00, 0x1F])),        // full dispatcher word
++        (vendor, Data([0x00, 0x1F])),                    // args only (smali new-array)
++        (vendor, Data([0x1F])),                          // cmdByte only
++        (vendor, Data()),                                // channel only
++    ]
++
++    /// Challenge hunt then auth; completion always fires; every step narrated.
 +    public static func run(tag: NFCISO15693Tag,
 +                           readableBlob: Data,
 +                           sensorUID: Data,
 +                           completion: @escaping (Outcome) -> Void) {
 +
-+        guard let iso7816 = tag as? NFCISO7816Tag else {
-+            let msg = "tag not ISO7816-capable (uid \(tag.identifier.count)B, cast failed)"
-+            present(msg)
-+            completion(Outcome(pairingSucceeded: false, streamingEnabled: false, discoveredChallenge: nil,
-+                               authResponse: nil, learnedKeyK: nil, diagnostics: msg))
-+            return
-+        }
-+
 +        var attempts = ""
 +
-+        func send(_ apdu: APDU, expect: @escaping (Data) -> Bool, next: @escaping (Data) -> Void) {
-+            let req = NFCISO7816APDU(data: apdu.bytes(le: true))
-+            guard let req = req else { next(Data()); return }
-+            iso7816.sendCommand(apdu: req) { data, sw1, sw2, error in
-+                let body = data ?? Data()
-+                let sw = "\(Hex(sw1))\(Hex(sw2))"
-+                attempts += "\(apdu)->\(sw):\(hex(body.prefix(6))) "
-+                if error == nil, expect(body) { next(body); return }
-+                next(Data())
++        func fail(_ why: String, challenge: Data?) {
++            let msg = "\(why) | \(attempts)"
++            present(msg)
++            completion(Outcome(pairingSucceeded: false, streamingEnabled: false, discoveredChallenge: challenge,
++                               authResponse: nil, learnedKeyK: nil, diagnostics: msg))
++        }
++
++        func probe(_ step: (code: UInt8, prefix: Data), payload: Data, then: @escaping (Data?) -> Void) {
++            tag.customCommand(requestFlags: .highDataRate,
++                              customCommandCode: Int(step.code),
++                              customRequestParameters: step.prefix + payload) { resp, error in
++                let body = resp ?? Data()
++                attempts += "\(Hex(step.code)):\(hex(step.prefix))->\(error == nil ? "ok" : "err"):\(hex(body.prefix(6))) "
++                then(error == nil ? body : nil)
 +            }
 +        }
 +
-+        // 1) optional fingerprint from anything the caller already read
-+        if let chal = findChallenge(in: readableBlob) { auth(with: iso7816, challenge: chal, attempts: "from-blocks ", completion: completion); return }
-+
-+        // 2) SELECT the Libre applet, then walk the read ladder
-+        send(challengeReads[2], expect: { _ in true }) { _ in
-+            func walk(_ rest: [APDU]) {
-+                guard let a = rest.first else {
-+                    let msg = "no challenge found. \(attempts)"
-+                    present(msg)
-+                    completion(Outcome(pairingSucceeded: false, streamingEnabled: false, discoveredChallenge: nil,
-+                                       authResponse: nil, learnedKeyK: nil, diagnostics: msg))
-+                    return
-+                }
-+                send(a, expect: { findChallenge(in: $0) != nil }) { body in
-+                    if let chal = findChallenge(in: body) {
-+                        auth(with: iso7816, challenge: chal, attempts: attempts, completion: completion)
-+                    } else {
-+                        walk(Array(rest.dropFirst()))
++        func authAttempt(_ idx: Int, challenge: Data) {
++            guard idx < authFrames.count else { fail("challenge found, no auth frame accepted", challenge: challenge); return }
++            probe(authFrames[idx], payload: challenge) { resp in
++                if let body = resp, body.count >= 19, body.starts(with: Data([0x00, 0x00, 0x00, 0x1F])) {
++                    let tail = body.suffix(8)
++                    let learnedK = learnK(challenge: challenge, tail8: tail)
++                    if let k = learnedK {
++                        UserDefaults.standard.set(hex(k), forKey: "LibreTransmitter.Gen3KeyK.\(hex(challenge.subdata(in: 14 ..< 21)))")
 +                    }
++                    let msg = "AUTH OK | chal=\(hex(challenge)) | rsp=\(hex(body)) | K=\(learnedK.map(hex) ?? "F-row pending") | \(attempts)"
++                    present(msg)
++                    completion(Outcome(pairingSucceeded: true, streamingEnabled: true, discoveredChallenge: challenge,
++                                       authResponse: body, learnedKeyK: learnedK, diagnostics: msg))
++                } else {
++                    authAttempt(idx + 1, challenge: challenge)
 +                }
 +            }
-+            walk(challengeReads.filter { $0.ins != 0xA4 })
 +        }
-+    }
 +
-+    private static func auth(with tag: NFCISO7816Tag, challenge: Data, attempts: String,
-+                             completion: @escaping (Outcome) -> Void) {
-+        // AUTH APDU: CLA 19 INS 28 P1 00 P2 1F, data = challenge (exact Android-captured shape)
-+        let req = NFCISO7816APDU(instructionClass: 0x19, instructionCode: 0x28, p1Parameter: 0x00, p2Parameter: 0x1F,
-+                                 data: challenge, expectedResponseLength: 0x1F)
-+        tag.sendCommand(apdu: req) { data, sw1, sw2, error in
-+            var body = data ?? Data()
-+            let sw = "\(Hex(sw1))\(Hex(sw2))"
-+            var okShape = false
-+            if error == nil {
-+                // Captured air reply: 0000001f || head7 || tail8 = 19 bytes. Some stacks fold the
-+                // trailing 2 status bytes into the payload; rejoin if the body came up short.
-+                if body.count == 17 { body.append(sw1); body.append(sw2) }
-+                okShape = body.count >= 19 && body.starts(with: Data([0x00, 0x00, 0x00, 0x1F]))
-+            }
-+            if okShape {
-+                let tail = body.suffix(8)
-+                let learnedK = learnK(challenge: challenge, tail8: tail)
-+                if let k = learnedK {
-+                    UserDefaults.standard.set(hex(k), forKey: "LibreTransmitter.Gen3KeyK.\(hex(challenge.subdata(in: 14 ..< 21)))")
++        func hunt(_ idx: Int) {
++            guard idx < challengeReads.count else { fail("no challenge on engine channel", challenge: nil); return }
++            probe(challengeReads[idx], payload: Data()) { resp in
++                if let body = resp, let chal = findChallenge(in: body) {
++                    authAttempt(0, challenge: chal)
++                } else {
++                    hunt(idx + 1)
 +                }
-+                let msg = "AUTH OK | chal=\(hex(challenge)) | rsp=\(hex(body)) | K=\(learnedK.map(hex) ?? "F-row pending") | \(attempts)"
-+                present(msg)
-+                completion(Outcome(pairingSucceeded: true, streamingEnabled: true, discoveredChallenge: challenge,
-+                                   authResponse: body, learnedKeyK: learnedK, diagnostics: msg))
-+            } else {
-+                let msg = "challenge \(hex(challenge)) but auth refused \(attempts) sw=\(sw) rsp=\(hex(body.prefix(8)))"
-+                present(msg)
-+                completion(Outcome(pairingSucceeded: false, streamingEnabled: false, discoveredChallenge: challenge,
-+                                   authResponse: nil, learnedKeyK: nil, diagnostics: msg))
 +            }
 +        }
++
++        if let chal = findChallenge(in: readableBlob) { authAttempt(0, challenge: chal); return }
++        hunt(0)
 +    }
 +
 +    /// K = tail8 ⊕ (rand<<8 shift-XOR) ⊕ F(rand[7])  (mirror test)
@@ -335,19 +307,6 @@ index 0000000..b1722f2
 +        var f = Data(repeating: 0, count: 344)
 +        f[4] = 0x02
 +        return f
-+    }
-+}
-+
-+private extension Data {
-+    init?(hexString: String) {
-+        guard hexString.count % 2 == 0 else { return nil }
-+        var d = Data(); var idx = hexString.startIndex
-+        while idx < hexString.endIndex {
-+            let next = hexString.index(idx, offsetBy: 2)
-+            guard let b = UInt8(hexString[idx ..< next], radix: 16) else { return nil }
-+            d.append(b); idx = next
-+        }
-+        self = d
 +    }
 +}
 diff --git a/LibreSensor/SensorPairing/SensorPairingService.swift b/LibreSensor/SensorPairing/SensorPairingService.swift
