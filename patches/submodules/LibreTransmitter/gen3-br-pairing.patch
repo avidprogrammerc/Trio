@@ -129,10 +129,10 @@ index 0000000..77e9a5d
 +// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
 diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 new file mode 100644
-index 0000000..b550486
+index 0000000..8e0d633
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
-@@ -0,0 +1,182 @@
+@@ -0,0 +1,188 @@
 +//
 +//  Gen3Ceremony.swift
 +//  LibreTransmitter
@@ -163,12 +163,18 @@ index 0000000..b550486
 +    private static let log = Logger(subsystem: "com.trio.libretransmitter.gen3", category: "ceremony")
 +
 +    /// Selectable, persistent alert so diagnostics survive the moment.
++    /// UIApplication.shared is unavailable in extension-safe contexts, so reach it dynamically.
 +    static func present(_ text: String) {
 +        log.log("ceremony: \(text, privacy: .public)")
 +        UserDefaults.standard.set(text, forKey: "Gen3LastDiagnostics")
 +        DispatchQueue.main.async {
-+            let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
-+            guard let root = scene?.windows.first(where: { $0.isKeyWindow })?.rootViewController else { return }
++            guard let appCls: AnyClass = NSClassFromString("UIApplication"),
++                  let app = (appCls as AnyObject).value(forKey: "shared") as AnyObject?,
++                  let scenes = (app.value(forKey: "connectedScenes") as? NSSet)?.allObjects as? [AnyObject],
++                  let windows = scenes.first(where: { (($0.value(forKey: "windows") as? [AnyObject])?.isEmpty == false) })?
++                        .value(forKey: "windows") as? [AnyObject] else { return }
++            let win = windows.first(where: { ($0.value(forKey: "isKeyWindow") as? Bool) == true }) ?? windows.last
++            guard let root = win?.value(forKey: "rootViewController") as? UIViewController else { return }
 +            var top = root
 +            while let v = top.presentedViewController { top = v }
 +            let alert = UIAlertController(title: "Gen3 ceremony", message: text, preferredStyle: .alert)
