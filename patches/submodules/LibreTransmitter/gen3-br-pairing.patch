@@ -129,10 +129,10 @@ index 0000000..77e9a5d
 +// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
 diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 new file mode 100644
-index 0000000..aeb542a
+index 0000000..1bfb51c
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
-@@ -0,0 +1,186 @@
+@@ -0,0 +1,200 @@
 +//
 +//  Gen3Ceremony.swift
 +//  LibreTransmitter
@@ -212,19 +212,26 @@ index 0000000..aeb542a
 +    // Derived from dispatcher words observed in Android captures: 0x19xx family + 0x3C/0x39/0x30 guesses
 +    // (Libre-adjacent instruction sets) + the raw sub-opcodes seen in P1/P2 logs.
 +    private static let challengeReads: [(code: UInt8, prefix: Data)] = [
-+        // length-prefixed shapes (ISO 15693 custom payloads commonly carry total length first)
-+        (vendor, Data([0x2B, 0x28, 0x00, 0x1F])),        // len=43: auth frame w/ zero challenge
-+        (vendor, Data([0x1B, 0x28, 0x00, 0x1F])),        // len=27 alt
-+        (vendor, Data([0x03, 0x00])),                    // len=3, sub 00
-+        (vendor, Data([0x04, 0x19, 0x18])),              // len=4, 0x1918
-+        (vendor, Data([0x02, 0x19, 0x00])),
-+        (vendor, Data([0x01, 0x00])),
-+        (vendor, Data([0x21])),                          // single read opcode guesses
-+        (vendor, Data([0x22])),
-+        (vendor, Data([0x23])),                          // READ_MULTIPLE standard opcode through vendor door
-+        (vendor, Data([0x02, 0x23, 0x00, 0x0A])),        // len2 + read blocks 0..10
-+        (vendor, Data([0x19, 0x18])),                    // unlengthed classics (kept)
++        // Post-SELECT reads (SELECT = 0xA1 ‖ 22, done first by run()): state may unlock them
++        (vendor, Data()),                                // bare channel post-select
++        (vendor, Data([0x23, 0x00, 0x0A])),              // READ family after select
++        (vendor, Data([0x33, 0x00, 0x0A])),              // READ alt family
++        (vendor, Data([0x19, 0x18])),                    // dispatcher classics, re-tried post-select
 +        (vendor, Data([0x19, 0x08])),
++        (vendor, Data([0x19, 0x00])),
++        (vendor, Data([0x2B, 0x28, 0x00, 0x1F])),        // length-prefixed shapes, re-tried post-select
++        (vendor, Data([0x1B, 0x28, 0x00, 0x1F])),
++        (vendor, Data([0x21, 0x00, 0x0A])),              // READ_SINGLE-shaped
++        (vendor, Data([0x24, 0x00, 0x0A])),
++    ]
++
++    // SELECT step candidates (0x22 answered pre-refactor; file id variants to find the applet)
++    private static let selects: [(code: UInt8, prefix: Data)] = [
++        (vendor, Data([0x22, 0x00, 0x00, 0x02, 0x3F, 0x00])),  // SELECT MF-ish (len 2)
++        (vendor, Data([0x22, 0x00, 0x00, 0x04, 0x3F, 0x00, 0x00, 0x00])),
++        (vendor, Data([0x22, 0x00, 0x00, 0x02, 0x11, 0x11])),  // Libre-ish fids
++        (vendor, Data([0x22, 0x00, 0x00, 0x02, 0xA0, 0x3B])),
++        (vendor, Data([0x22])),                               // bare select (answered once already)
 +    ]
 +
 +    // Auth frame candidates: engine frame for P2 0x1928 args 001f, prefix shapes derived from smali.
@@ -257,7 +264,7 @@ index 0000000..aeb542a
 +                              customCommandCode: Int(step.code),
 +                              customRequestParameters: step.prefix + payload) { resp, error in
 +                let body = resp ?? Data()
-+                attempts += "\(Hex(step.code)):\(hex(step.prefix))->\(error == nil ? "ok" : "err"):\(hex(body.prefix(6))) "
++                attempts += "\(Hex(step.code)):\(hex(step.prefix))->\(error == nil ? "ok" : "err"):\(hex(body.prefix(20))) "
 +                then(error == nil ? body : nil)
 +            }
 +        }
@@ -293,7 +300,14 @@ index 0000000..aeb542a
 +        }
 +
 +        if let chal = findChallenge(in: readableBlob) { authAttempt(0, challenge: chal); return }
-+        hunt(0)
++
++        // SELECT the applet first (state machine), then walk the read ladder
++        // Only run the first select that gets any answer, then proceed to reads
++        probe(selects[0], payload: Data()) { _ in
++            probe(selects[4], payload: Data()) { _ in   // bare select too — the sensor answered it before
++                hunt(0)
++            }
++        }
 +    }
 +
 +    /// K = tail8 ⊕ (rand<<8 shift-XOR) ⊕ F(rand[7])  (mirror test)
