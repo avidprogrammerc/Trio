@@ -129,10 +129,10 @@ index 0000000..77e9a5d
 +// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
 diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 new file mode 100644
-index 0000000..afbd3b8
+index 0000000..504891f
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
-@@ -0,0 +1,176 @@
+@@ -0,0 +1,184 @@
 +//
 +//  Gen3Ceremony.swift
 +//  LibreTransmitter
@@ -208,13 +208,21 @@ index 0000000..afbd3b8
 +    private static let vendor: UInt8 = 0xA1   // engine channel (patchInfo door, proven open)
 +    private static let select: UInt8 = 0xA0   // applet select door
 +
-+    // Challenge-hunt probes: [sub-opcode] candidates over the engine channel.
++    // Challenge-hunt probes: [opcode][args] candidates over the engine channel (0xA1).
++    // Derived from dispatcher words observed in Android captures: 0x19xx family + 0x3C/0x39/0x30 guesses
++    // (Libre-adjacent instruction sets) + the raw sub-opcodes seen in P1/P2 logs.
 +    private static let challengeReads: [(code: UInt8, prefix: Data)] = [
-+        (vendor, Data([0x00])),                          // get-challenge?
-+        (vendor, Data([0x19, 0x00])),                    // dispatcher-word-shaped
-+        (vendor, Data()),                                // bare channel (how patchInfo answers)
-+        (vendor, Data([0x19, 0x08])),                    // 0x1908 sibling seen in captures
-+        (vendor, Data([0x00, 0x1F])),                    // auth-shaped read
++        (vendor, Data([0x19, 0x18])),                    // 0x9218 word low half: session info (proven in logs)
++        (vendor, Data([0x19, 0x19])),                    // 0x9219 sibling
++        (vendor, Data([0x19, 0x00])),                    // get-challenge guess
++        (vendor, Data([0x19, 0x08])),                    // 0x1908 (6B response in captures: likely SELECT)
++        (vendor, Data([0x19, 0x78])),                    // 0x1978 (seen: fram-adjacent)
++        (vendor, Data([0x19, 0x69])),                    // BLE-side auth family member
++        (vendor, Data([0x3C, 0x00])),                    // Gen2EU family (challenge at 0x3C on older tags)
++        (vendor, Data([0x39, 0x00])),                    // Gen2EU challenge family
++        (vendor, Data([0x30, 0x00])),                    // plain guess
++        (vendor, Data([0x28, 0x00, 0x1F])),              // auth-shaped read (maybe challenge rides auth reply)
++        (vendor, Data([0x19, 0x28, 0x00, 0x1F, 0x00])),  // auth frame with zero challenge: sensor may hand one back
 +        (select, Data([0x3B, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])), // Libre AID
 +    ]
 +
