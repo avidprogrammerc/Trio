@@ -129,7 +129,7 @@ index 0000000..77e9a5d
 +// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
 diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 new file mode 100644
-index 0000000..6471b70
+index 0000000..b1722f2
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 @@ -0,0 +1,217 @@
@@ -243,7 +243,7 @@ index 0000000..6471b70
 +
 +        var attempts = ""
 +
-+        func send(_ apdu: APDU, expect: (Data) -> Bool, next: @escaping (Data) -> Void) {
++        func send(_ apdu: APDU, expect: @escaping (Data) -> Bool, next: @escaping (Data) -> Void) {
 +            let req = NFCISO7816APDU(data: apdu.bytes(le: true))
 +            guard let req = req else { next(Data()); return }
 +            iso7816.sendCommand(apdu: req) { data, sw1, sw2, error in
