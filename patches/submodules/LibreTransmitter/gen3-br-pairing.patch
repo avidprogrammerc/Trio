@@ -129,10 +129,10 @@ index 0000000..77e9a5d
 +// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
 diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 new file mode 100644
-index 0000000..504891f
+index 0000000..aeb542a
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
-@@ -0,0 +1,184 @@
+@@ -0,0 +1,186 @@
 +//
 +//  Gen3Ceremony.swift
 +//  LibreTransmitter
@@ -212,27 +212,29 @@ index 0000000..504891f
 +    // Derived from dispatcher words observed in Android captures: 0x19xx family + 0x3C/0x39/0x30 guesses
 +    // (Libre-adjacent instruction sets) + the raw sub-opcodes seen in P1/P2 logs.
 +    private static let challengeReads: [(code: UInt8, prefix: Data)] = [
-+        (vendor, Data([0x19, 0x18])),                    // 0x9218 word low half: session info (proven in logs)
-+        (vendor, Data([0x19, 0x19])),                    // 0x9219 sibling
-+        (vendor, Data([0x19, 0x00])),                    // get-challenge guess
-+        (vendor, Data([0x19, 0x08])),                    // 0x1908 (6B response in captures: likely SELECT)
-+        (vendor, Data([0x19, 0x78])),                    // 0x1978 (seen: fram-adjacent)
-+        (vendor, Data([0x19, 0x69])),                    // BLE-side auth family member
-+        (vendor, Data([0x3C, 0x00])),                    // Gen2EU family (challenge at 0x3C on older tags)
-+        (vendor, Data([0x39, 0x00])),                    // Gen2EU challenge family
-+        (vendor, Data([0x30, 0x00])),                    // plain guess
-+        (vendor, Data([0x28, 0x00, 0x1F])),              // auth-shaped read (maybe challenge rides auth reply)
-+        (vendor, Data([0x19, 0x28, 0x00, 0x1F, 0x00])),  // auth frame with zero challenge: sensor may hand one back
-+        (select, Data([0x3B, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])), // Libre AID
++        // length-prefixed shapes (ISO 15693 custom payloads commonly carry total length first)
++        (vendor, Data([0x2B, 0x28, 0x00, 0x1F])),        // len=43: auth frame w/ zero challenge
++        (vendor, Data([0x1B, 0x28, 0x00, 0x1F])),        // len=27 alt
++        (vendor, Data([0x03, 0x00])),                    // len=3, sub 00
++        (vendor, Data([0x04, 0x19, 0x18])),              // len=4, 0x1918
++        (vendor, Data([0x02, 0x19, 0x00])),
++        (vendor, Data([0x01, 0x00])),
++        (vendor, Data([0x21])),                          // single read opcode guesses
++        (vendor, Data([0x22])),
++        (vendor, Data([0x23])),                          // READ_MULTIPLE standard opcode through vendor door
++        (vendor, Data([0x02, 0x23, 0x00, 0x0A])),        // len2 + read blocks 0..10
++        (vendor, Data([0x19, 0x18])),                    // unlengthed classics (kept)
++        (vendor, Data([0x19, 0x08])),
 +    ]
 +
 +    // Auth frame candidates: engine frame for P2 0x1928 args 001f, prefix shapes derived from smali.
 +    private static let authFrames: [(code: UInt8, prefix: Data)] = [
-+        (vendor, Data([0x28, 0x00, 0x1F])),              // INS + args (engine-style)
++        (vendor, Data([0x1C, 0x28, 0x00, 0x1F])),        // len=28 (3+25) + INS + args
++        (vendor, Data([0x28, 0x00, 0x1F])),              // INS + args bare (engine-style)
 +        (vendor, Data([0x19, 0x28, 0x00, 0x1F])),        // full dispatcher word
-+        (vendor, Data([0x00, 0x1F])),                    // args only (smali new-array)
++        (vendor, Data([0x41, 0x28, 0x00, 0x1F])),        // len=65 alt counting
++        (vendor, Data([0x00, 0x1F])),                    // args only
 +        (vendor, Data([0x1F])),                          // cmdByte only
-+        (vendor, Data()),                                // channel only
 +    ]
 +
 +    /// Challenge hunt then auth; completion always fires; every step narrated.
