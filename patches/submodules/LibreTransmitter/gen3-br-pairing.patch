@@ -129,10 +129,10 @@ index 0000000..77e9a5d
 +// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
 diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 new file mode 100644
-index 0000000..48ed6f6
+index 0000000..815fac0
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,208 @@
 +//
 +//  Gen3Ceremony.swift
 +//  LibreTransmitter
@@ -226,6 +226,11 @@ index 0000000..48ed6f6
 +        (vendor, Data([0x22])),
 +        (vendor, Data([0x19, 0x18])),
 +        (vendor, Data([0x19, 0x78])),                  // FRAM-read word from live capture
++        // --- volley 4: the a5-preamble family (unlocks' shape) + full identity dump ---
++        (vendor, Data([0x22, 0x00])),                  // identity with P1-ish byte: maybe longer reply
++        (vendor, Data([0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5])),          // a5×8 alone
++        (vendor, Data([0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0x19, 0x00])),  // a5×8 + get-challenge
++        (vendor, Data([0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0x19, 0x08])),  // a5×8 + select-ish
 +    ]
 +
 +    // SELECT step candidates (0x22 answered pre-refactor; file id variants to find the applet)
@@ -267,7 +272,7 @@ index 0000000..48ed6f6
 +                              customCommandCode: Int(step.code),
 +                              customRequestParameters: step.prefix + payload) { resp, error in
 +                let body = resp ?? Data()
-+                attempts += "\(Hex(step.code)):\(hex(step.prefix))->\(error == nil ? "ok" : "err"):\(hex(body.prefix(20))) "
++                attempts += "\(Hex(step.code)):\(hex(step.prefix))->\(error == nil ? "ok" : "err"):\(hex(body.prefix(32))) "
 +                then(error == nil ? body : nil)
 +            }
 +        }
