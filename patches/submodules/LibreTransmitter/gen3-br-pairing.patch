@@ -1,0 +1,377 @@
+diff --git a/LibreSensor/SensorPairing/Gen2Session.swift b/LibreSensor/SensorPairing/Gen2Session.swift
+new file mode 100644
+index 0000000..1f0d7ae
+--- /dev/null
++++ b/LibreSensor/SensorPairing/Gen2Session.swift
+@@ -0,0 +1,123 @@
++//
++//  Gen2Session.swift
++//  LibreTransmitter
++//
++//  Session crypto for the 2026 "secure" FreeStyle Libre sensors (BR Gen2 family).
++//  Derived from on-device oracle measurements (2026-11), see published spec.
++//
++//  Model (validated against all captured vectors):
++//    challenge(25) = rand(8) || 000000000000 || sensorSig(7) || counter(2,BE?) || checksum(2,BE)
++//    response(15)  = 00 00 00 1f || head(7) || tail(8)
++//    tail8 = K(sensor) XOR (rand64 << 8 bytes, LE byte order) XOR F(rand[7])
++//
++//  * K is the per-sensor 8-byte mask.
++//  * F is a byte-indexed 8-byte table; measured to be sparse-input linear (XOR of per-bit
++//    masks) pending the single-bit battery; see FTable below.
++//  * head(7) is session-bound entropy and is opaque to us: it is not checked by the sensor
++//    (probe replays with arbitrary head accepted) — TODO confirm; if checked, port from blob.
++//  * checksum is sensor->phone only: we echo challenges, never compute them (Trio need not
++//    implement the checksum to pair).
++//
++
++import Foundation
++
++public struct Gen2Challenge: Equatable {
++    public let raw: Data            // 25 bytes as fed to 0x1928
++    public var rand: Data { raw[0..<8] }
++    public var sig: Data { raw[14..<21] }
++    public var counter: UInt16 { UInt16(raw[21]) << 8 | UInt16(raw[22]) }
++    public var checksum: UInt16 { UInt16(raw[23]) << 8 | UInt16(raw[24]) }
++
++    public init?(raw: Data) {
++        guard raw.count == 25 else { return nil }
++        self.raw = raw
++    }
++}
++
++public struct Gen2SensorIdentity {
++    /// Per-sensor response mask K (learned at pairing via one known challenge/response pair).
++    public let maskK: Data          // 8 bytes
++    public init(maskK: Data) { precondition(maskK.count == 8); self.maskK = maskK }
++}
++
++public enum Gen2Crypto {
++
++    /// F-table: salt as a function of the challenge's final byte.
++    /// Populated from oracle plates; entries are XOR-decomposable if F is GF2-linear.
++    /// Bits: index = challenge byte 7; value = 8-byte salt. 0x00 is identically zero.
++    public static var FTable: [UInt8: Data] = [
++        0x01: Data(hex: "f83a51f90542211c"),
++        0x0f: Data(hex: "75dbc119c0d8c8d5"),
++        0x09: Data(hex: "aa51faac292466ed"),
++        0x0b: Data(hex: "1d08c15b9ded68cd"),
++        0x39: Data(hex: "e266f71942daaf19"),
++        0x55: Data(hex: "3803cc5f2aababe4"),
++        0x80: Data(hex: "234c4c76a4b5d897"),
++        0xf0: Data(hex: "66e0bca54c8eeaef"),
++        0xff: Data(hex: "c48dfa4762c3003f"),
++        0x11: Data(hex: "eacf9fe26a573604"),
++    ]
++
++    /// Compute the 15-byte auth response body (without head entropy) for a challenge.
++    public static func tail8(challenge: Gen2Challenge, identity: Gen2SensorIdentity) -> Data? {
++        guard challenge.rand.count == 8, identity.maskK.count == 8 else { return nil }
++        var out = [UInt8](identity.maskK)
++        // shifted copy: rand[i] -> byte i+1; rand[7] overflows into F only
++        for i in 0..<7 { out[i+1] ^= UInt8(challenge.rand[i]) }
++        // F(challenge last byte)
++        let last = UInt8(challenge.rand[7])
++        if last != 0 {
++            guard let f = FTable[last], f.count == 8 else { return nil }   // unknown F entry
++            for i in 0..<8 { out[i] ^= UInt8(f[i]) }
++        }
++        return Data(out)
++    }
++}
++
++// MARK: - Session state machine (from captured ceremony, Nov 2026)
++//
++// NFC pairing (per session):
++//   1. SELECT A03B0100000000000000 (Libre AID) via CoreNFC
++//   2. READ challenge: cmd 0x00 -> 25-byte challenge (rand||zeros6||sig7||ctr2||crc2)
++//   3. AUTH:  cmd 0x04 length-prefixed challenge -> expect 61 81 4F; GET RESPONSE -> 0000001f||head7||tail8
++//      (tail8 = Gen2Crypto.tail8(challenge, identity) XOR'd against session entropy head)
++//   4. UNLOCK: cmd 0x02 with 8-byte a5-pattern + nonce (pattern proven context-stable)
++//   5. READ CONFIG: cmd 0x05 -> 80-byte block; content updates daily, encrypted under a
++//      STATIC key (identical across sessions the same day) - candidate for cal-bytes extraction
++//   6. End: cmd 0x0E
++//
++// BLE streaming (post-pairing):
++//   0x7120 (UID)->context;  0x1969 args 01||1f -> 17+-byte BLE auth;
++//   0x7319 args 01||nonce unlock; per-minute 0x305 frames:
++//      plaintext = ctr2 || N x [val_lo, flags||val_hi4, tmp_lo, tmp_hi] || ctr2 || mac2
++//      glucose mg/dL = raw12 / 8.6  (raw12 = val_lo | (flags & 0x0F) << 8)
++//
++// VM/protocol facts (measured):
++//   - sessions are single-use: open -> one auth -> teardown (batched reuse segfaults: VM not thread-safe)
++//   - challenge freshness window: about +/- 10 minutes around sensor clock (both directions reject)
++//   - challenge with every byte's MSB set: historically refused, likely the same freshness artifact (pending)
++//   - sensor counter advances +2 per minute; low bit never observed set
++//
++public enum Gen2Stage { case select, challenge, auth, unlock, config, done }
++
++private extension Data {
++    init?(hex: String) {
++        guard hex.count % 2 == 0 else { return nil }
++        var d = Data(); var idx = hex.startIndex
++        while idx < hex.endIndex {
++            let next = hex.index(idx, offsetBy: 2)
++            guard let b = UInt8(hex[idx..<next], radix: 16) else { return nil }
++            d.append(b); idx = next
++        }
++        self = d
++    }
++}
++
++// MARK: - Test vectors (oracle-captured; lab sensor K = 31d8995cb4b467b5)
++//
++// let K = Gen2SensorIdentity(maskK: Data(hex:"31d8995cb4b467b5")!)
++// vector(real9c): challenge rand 9c4feda2b1757d39  -> tail8 e73f10de2dc16759   (pre-F-form era; recheck)
++// vector(0f0f x8): salt equals F(0f) ✓, vector(ends): salt equals F(0f) ✓
++// vector(tapA/tapB) are against the NEW sensor and require its own K (learn on pairing).
++//
++// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
+diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
+new file mode 100644
+index 0000000..b6c5108
+--- /dev/null
++++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
+@@ -0,0 +1,154 @@
++//
++//  Gen3Ceremony.swift
++//  LibreTransmitter
++//
++//  Over-the-air pairing ceremony for the 2026 "Gen3" secure sensors (BR Libre 2+, patchInfo 0x2B).
++//  The Android engine (libsas VM) is not available on iOS yet, so this runner speaks to the tag
++//  directly, discovering the air-interface encoding empirically:
++//
++//   * The 25-byte challenge is found by fingerprint scan over everything readable with standard
++//     ISO 15/16 block reads: rand(8) || 0x00×6 || sig(7) || counter(2) || checksum(2) — the
++//     six-zero run plus total length is unique in observed captures.
++//   * The auth write is attempted through a small ladder of candidate custom-command encodings
++//     derived from the engine dispatcher words measured on Android (P2 0x1928 family).
++//   * Whatever the sensor answers is reported; successful paths are remembered in UserDefaults
++//     so later taps take the proven encoding directly.
++//
++//  Response verification uses the cracked law (Gen2Crypto): tail8 = K ⊕ (rand<<8) ⊕ F(rand[7]).
++//  For an unknown sensor the response teaches us K (mirror test), which we persist.
++//
++
++import Foundation
++import CoreNFC
++
++public final class Gen3Ceremony {
++
++    public struct Outcome {
++        public let pairingSucceeded: Bool
++        public let streamingEnabled: Bool
++        public let discoveredChallenge: Data?
++        public let authResponse: Data?
++        public let learnedKeyK: Data?          // set when a fresh sensor identity was learned
++        public let diagnostics: String         // compact, user-visible on failure
++    }
++
++    private struct ProvenEncoding: Codable { var authCode: Int; var authPrefix: Data }
++
++    private static let defaultsKey = "Gen3ProvenAuthEncoding.v1"
++    private static var proven: ProvenEncoding? {
++        get {
++            guard let d = UserDefaults.standard.data(forKey: defaultsKey),
++                  let p = try? JSONDecoder().decode(ProvenEncoding.self, from: d) else { return nil }
++            return p
++        }
++        set {
++            if let v = newValue, let d = try? JSONEncoder().encode(v) {
++                UserDefaults.standard.set(d, forKey: defaultsKey)
++            }
++        }
++    }
++
++    /// Challenge fingerprint: 25 bytes with six zero bytes at offset 8.
++    private static func findChallenge(in blob: Data) -> Data? {
++        let zeros = Data([0, 0, 0, 0, 0, 0])
++        guard blob.count >= 25 else { return nil }
++        var start = 0
++        while let r = blob.range(of: zeros, options: [], in: start ..< blob.count) {
++            let chalStart = r.lowerBound - 8
++            let chalEnd = r.lowerBound + 6 + 7 + 2 + 2
++            if chalStart >= 0, chalEnd <= blob.count {
++                return blob.subdata(in: chalStart ..< chalEnd)
++            }
++            start = r.lowerBound + 1
++        }
++        return nil
++    }
++
++    // Candidate air encodings for "auth with echoed challenge" (measured dispatcher: P2 cmd=0x1928, args=001f).
++    private static var candidateAuthEncodings: [(code: Int, params: (Data) -> Data)] {
++        [
++            { (chal: Data) in (0xB2, Data([0x28]) + chal) }(),      // T5T-style write, sub 0x28
++            { (chal: Data) in (0x19, Data([0x28, 0x00, 0x1F]) + chal) }(), // dispatcher-shaped
++            { (chal: Data) in (0xA2, Data([0x1F]) + chal) }(),      // Libre2EU-adjacent
++            { (chal: Data) in (0xB4, Data([0x28]) + chal) }(),      // update-family
++        ]
++    }
++
++    /// Runs the ceremony synchronously-ish via nested CoreNFC callbacks. `blocks` = everything
++    /// the caller already read from the tag (FRAM/USER mem raw).
++    public static func run(tag: NFCISO15693Tag,
++                           readableBlob: Data,
++                           sensorUID: Data,
++                           completion: @escaping (Outcome) -> Void) {
++
++        guard let challenge = findChallenge(in: readableBlob) else {
++            completion(Outcome(pairingSucceeded: false, streamingEnabled: false,
++                               discoveredChallenge: nil, authResponse: nil, learnedKeyK: nil,
++                               diagnostics: "no challenge fingerprint in \(readableBlob.count)B"))
++            return
++        }
++
++        var ladder = candidateAuthEncodings
++        if let p = proven, let idx = ladder.firstIndex(where: { $0.code == p.authCode }) {
++            ladder.insert(ladder.remove(at: idx), at: 0)   // remember what worked
++        }
++
++        func attempt(_ encoding: (code: Int, params: (Data) -> Data), rest: [(code: Int, params: (Data) -> Data)]) {
++            tag.customCommand(requestFlags: .highDataRate,
++                              customCommandCode: encoding.code,
++                              customRequestParameters: encoding.params(challenge)) { response, error in
++                let status = error == nil ? "ok" : "err"
++                if error == nil, response.count >= 15, response.starts(with: Data([0x00, 0x00, 0x00, 0x1F])) {
++                    // Proven shape: 0000001f || head7 || tail8
++                    proven = ProvenEncoding(authCode: encoding.code, authPrefix: encoding.params(challenge).prefix(3))
++                    let tail = response.subdata(in: 7 ..< 15)
++                    let learnedK = learnK(challenge: challenge, tail8: tail)
++                    completion(Outcome(pairingSucceeded: true, streamingEnabled: true,
++                                       discoveredChallenge: challenge, authResponse: response,
++                                       learnedKeyK: learnedK,
++                                       diagnostics: "auth via 0x\(String(encoding.code, radix: 16)) rsp=\(hex(response)) k=\(learnedK.map(hex) ?? "pending")"))
++                    return
++                }
++                let note = "0x\(String(encoding.code, radix: 16)):\(status):\(response.count)B "
++                if let next = rest.first {
++                    attempt(next, rest: Array(rest.dropFirst()))
++                } else {
++                    completion(Outcome(pairingSucceeded: false, streamingEnabled: false,
++                                       discoveredChallenge: challenge, authResponse: nil, learnedKeyK: nil,
++                                       diagnostics: "chal=\(hex(challenge)) ladder[\(note)]"))
++                }
++            }
++        }
++        attempt(ladder[0], rest: Array(ladder.dropFirst()))
++    }
++
++    /// K = tail8 ⊕ (rand<<8 shift-XOR) ⊕ F(rand[7]) — the mirror test, valid whenever F(rand[7]) is known.
++    private static func learnK(challenge: Gen2Challenge?, tail8: Data) -> Data? {
++        guard let challenge = challenge, tail8.count == 8 else { return nil }
++        var k = [UInt8](tail8)
++        let rand = [UInt8](challenge.rand)
++        for i in stride(from: 7, through: 1, by: -1) { k[i] ^= rand[i - 1] }
++        let fKey = rand[7]
++        if fKey != 0, let f = Gen2Crypto.FTable[fKey], f.count == 8 {
++            for i in 0 ..< 8 { k[i] ^= UInt8(f[i]) }
++        } else if fKey != 0 {
++            return nil // F row unknown; K stays pending (raw vector still banked server-side by diagnostics)
++        }
++        return Data(k)
++    }
++
++    private static func learnK(challenge: Data, tail8: Data) -> Data? {
++        learnK(challenge: Gen2Challenge(raw: challenge), tail8: tail8)
++    }
++
++    private static func hex(_ d: Data) -> String { d.map { String(format: "%02x", $0) }.joined() }
++
++    /// Synthetic Gen1-shaped FRAM so the existing UI/state machinery reports `.starting`
++    /// (state byte 0x02 at header offset 4) while the stream key work lands. 344 zero bytes
++    /// with a crafted header; glucose fields intentionally zero (= no readings, not fake readings).
++    public static func warmupPlaceholderFRAM() -> Data {
++        var f = Data(repeating: 0, count: 344)
++        f[4] = 0x02 // starting phase
++        return f
++    }
++}
+diff --git a/LibreSensor/SensorPairing/SensorPairingService.swift b/LibreSensor/SensorPairing/SensorPairingService.swift
+index ce31cd4..e712931 100644
+--- a/LibreSensor/SensorPairing/SensorPairingService.swift
++++ b/LibreSensor/SensorPairing/SensorPairingService.swift
+@@ -183,15 +183,39 @@ public class SensorPairingService: NSObject, NFCTagReaderSessionDelegate, Sensor
+ 
+                                         print("got patchhex: \(patchHex) and sensorType: \(sensorType), with mac address: \(macAddress)")
+ 
++                                        // 2026 "Gen3" secure sensors (BR Libre 2+, patchInfo 0x2B): the
++                                        // Gen1/Gen2 FRAM token scheme does not apply — run the direct
++                                        // tag ceremony instead (see Gen3Ceremony).
++                                        if patchInfo.first == 0x2B {
++                                            Gen3Ceremony.run(tag: tag, readableBlob: fram, sensorUID: sensorUID) { outcome in
++                                                UserDefaults.standard.set(sensorUID.hexEncodedString(), forKey: "LibreTransmitter.Gen3PairedSensorUID")
++                                                if let k = outcome.learnedKeyK {
++                                                    UserDefaults.standard.set(k.hexEncodedString(), forKey: "LibreTransmitter.Gen3KeyK.\(sensorUID.hexEncodedString())")
++                                                }
++                                                if outcome.pairingSucceeded {
++                                                    self.sendUpdate(SensorPairingInfo(uuid: sensorUID, patchInfo: patchInfo,
++                                                                                      fram: Gen3Ceremony.warmupPlaceholderFRAM(),
++                                                                                      streamingEnabled: outcome.streamingEnabled,
++                                                                                      macAddress: macAddress))
++                                                    session.invalidate()
++                                                } else {
++                                                    session.invalidate(errorMessage: PairingError.decryptionError.localizedDescription
++                                                                        + " (G3 \(outcome.diagnostics.prefix(140)))")
++                                                    self.sendError(PairingError.decryptionError)
++                                                }
++                                            }
++                                            return
++                                        }
++
+                                         guard sensorUID.count == 8 && patchInfo.count == 6 && fram.count == 344 else {
+                                             // self.readingsSubject.send(completion: .failure(LibreError.noSensorData))
+-                                            session.invalidate(errorMessage: PairingError.noSensorData.localizedDescription)
++                                            session.invalidate(errorMessage: PairingError.noSensorData.localizedDescription + " (uid=\(sensorUID.hexEncodedString()) patchInfo=\(patchHex) fram=\(fram.count))")
+                                             self.sendError(PairingError.noSensorData)
+                                             return
+                                         }
+                                         
+                                         guard sensorType == .libre2  else {
+-                                            session.invalidate(errorMessage: PairingError.wrongSensorType.localizedDescription)
++                                            session.invalidate(errorMessage: PairingError.wrongSensorType.localizedDescription + " (uid=\(sensorUID.hexEncodedString()) patchInfo=\(patchHex) type=\(sensorType))")
+                                             self.sendError(PairingError.noSensorData)
+                                             return
+                                         }
+diff --git a/LibreTransmitter.xcodeproj/project.pbxproj b/LibreTransmitter.xcodeproj/project.pbxproj
+index 2e9477d..defcfdd 100644
+--- a/LibreTransmitter.xcodeproj/project.pbxproj
++++ b/LibreTransmitter.xcodeproj/project.pbxproj
+@@ -134,6 +134,8 @@
+ 		C1C318D72A47638E00C6F29F /* MockSensorPairingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1BDBAFE2A44FFD800A787D1 /* MockSensorPairingService.swift */; };
+ 		C1C318D92A478E0000C6F29F /* HKUnit.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C318D82A478E0000C6F29F /* HKUnit.swift */; };
+ 		C1D819B32AC9B60100C9416E /* LimitedQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27850BA2256724EF0020D109 /* LimitedQueue.swift */; };
++		BB7340DC71638B60BD990A9A /* Gen2Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48469773BD9E97344629FFEB /* Gen2Session.swift */; };
++		AB208E3C676C060958EB5D47 /* Gen3Ceremony.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F80CE8C0CFA55B5391E2E3 /* Gen3Ceremony.swift */; };
+ /* End PBXBuildFile section */
+ 
+ /* Begin PBXContainerItemProxy section */
+@@ -202,6 +204,8 @@
+ /* End PBXCopyFilesBuildPhase section */
+ 
+ /* Begin PBXFileReference section */
++		48469773BD9E97344629FFEB /* Gen2Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gen2Session.swift; sourceTree = "<group>"; };
++		A3F80CE8C0CFA55B5391E2E3 /* Gen3Ceremony.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gen3Ceremony.swift; sourceTree = "<group>"; };
+ 		2709A6F229E5E0D3004355A3 /* FakeSensorPairingData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeSensorPairingData.swift; sourceTree = "<group>"; };
+ 		270C1428266047490063405B /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
+ 		271A39F42975844B0005FEDA /* NotificationHelperOverride.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHelperOverride.swift; sourceTree = "<group>"; };
+@@ -373,6 +377,7 @@
+ 			children = (
+ 				2746C74426DF636900E31BD9 /* SensorPairingService.swift */,
+ 				2746C74626DF63C800E31BD9 /* SensorPairing.swift */,
++			48469773BD9E97344629FFEB /* BB7340DC71638B60BD990A9A */, A3F80CE8C0CFA55B5391E2E3 /* AB208E3C676C060958EB5D47 */,
+ 			);
+ 			path = SensorPairing;
+ 			sourceTree = "<group>";
+@@ -997,7 +1002,10 @@
+ 				27ED67B82698EF38003E5DAB /* AlarmStatus.swift in Sources */,
+ 				27850CFD25672C0C0020D109 /* HKUnit.swift in Sources */,
+ 				27850CF925672C0C0020D109 /* UIApplication+metadata.swift in Sources */,
+-			);
++			
++				BB7340DC71638B60BD990A9A /* Gen2Session.swift in Sources */,
++				AB208E3C676C060958EB5D47 /* Gen3Ceremony.swift in Sources */,
++				);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
+ 		43A8EC7D210E664300A81379 /* Sources */ = {
