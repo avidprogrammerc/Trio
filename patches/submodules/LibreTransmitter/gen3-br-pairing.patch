@@ -129,10 +129,10 @@ index 0000000..77e9a5d
 +// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
 diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 new file mode 100644
-index 0000000..8e0d633
+index 0000000..ff58ddd
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
-@@ -0,0 +1,188 @@
+@@ -0,0 +1,209 @@
 +//
 +//  Gen3Ceremony.swift
 +//  LibreTransmitter
@@ -226,13 +226,17 @@ index 0000000..8e0d633
 +    }
 +
 +    // Candidate air encodings for "auth with echoed challenge" (measured dispatcher: P2 cmd=0x1928, args=001f).
++    // (code, prefix) pairs — tried in order; every reply (incl. status-nibble reason) is reported.
 +    private struct AuthEncoding { let code: Int; let prefix: Data }
 +    private static var candidateAuthEncodings: [AuthEncoding] {
 +        [
-+            AuthEncoding(code: 0xB2, prefix: Data([0x28])),             // T5T-style write, sub 0x28
-+            AuthEncoding(code: 0x19, prefix: Data([0x28, 0x00, 0x1F])), // dispatcher-shaped
-+            AuthEncoding(code: 0xA2, prefix: Data([0x1F])),             // Libre2EU-adjacent
-+            AuthEncoding(code: 0xB4, prefix: Data([0x28])),             // update-family
++            AuthEncoding(code: 0x19, prefix: Data([0x28, 0x01, 0x1F])), // dispatcher-shaped, 01-prefixed
++            AuthEncoding(code: 0x19, prefix: Data([0x28, 0x1F])),       // dispatcher-shaped, INS-prefixed
++            AuthEncoding(code: 0x19, prefix: Data([0x28])),             // dispatcher-shaped, bare
++            AuthEncoding(code: 0xB2, prefix: Data([0x1F])),             // classic write+token
++            AuthEncoding(code: 0xA2, prefix: Data([0x00, 0x1F])),       // select-family
++            AuthEncoding(code: 0xB4, prefix: Data([0x1F])),             // write-family variant
++            AuthEncoding(code: 0xB3, prefix: Data([0x1F])),             // read-family probe
 +        ]
 +    }
 +
@@ -261,7 +265,8 @@ index 0000000..8e0d633
 +            tag.customCommand(requestFlags: .highDataRate,
 +                              customCommandCode: encoding.code,
 +                              customRequestParameters: encoding.prefix + challenge) { response, error in
-+                let status = error == nil ? "ok" : "err"
++                let note = Self.describe(code: encoding.code, prefix: encoding.prefix, response: response, error: error)
++                log.log("ladder: \(note, privacy: .public)")
 +                if error == nil, response.count >= 15, response.starts(with: Data([0x00, 0x00, 0x00, 0x1F])) {
 +                    // Proven shape: 0000001f || head7 || tail8
 +                    proven = ProvenEncoding(authCode: encoding.code, authPrefix: encoding.prefix)
@@ -275,12 +280,10 @@ index 0000000..8e0d633
 +                                       diagnostics: msg))
 +                    return
 +                }
-+                let note = "0x\(String(encoding.code, radix: 16)):\(status):\(hex(response.prefix(8))) "
-+                log.log("ladder miss: \(note, privacy: .public)")
 +                if let next = rest.first {
 +                    attempt(next, rest: Array(rest.dropFirst()))
 +                } else {
-+                    let msg = "challenge found but no auth encoding accepted. chal=\(hex(challenge)) ladder[\(note)]"
++                    let msg = "chal=\(hex(challenge)) | \(note)"
 +                    present(msg)
 +                    completion(Outcome(pairingSucceeded: false, streamingEnabled: false,
 +                                       discoveredChallenge: challenge, authResponse: nil, learnedKeyK: nil,
@@ -289,6 +292,24 @@ index 0000000..8e0d633
 +            }
 +        }
 +        attempt(ladder[0], rest: Array(ladder.dropFirst()))
++    }
++
++    /// Response anatomy per ISO 15693: first byte = status. Bit7 error; bits 0-3 reason
++    /// (1=not_supported, 2=unknown, 3=out_of_range, 0=param/other). Command not invoked
++    /// (no RF response) surfaces as an error with empty payload.
++    static func describe(code: Int, prefix: Data, response: Data, error: Error?) -> String {
++        let hexr = hex(response.prefix(8))
++        if error == nil, let st = response.first {
++            let reason: String
++            switch st & 0x0F {
++            case 1: reason = "not_supported"
++            case 2: reason = "unknown_cmd"
++            case 3: reason = "out_of_range"
++            default: reason = "st\(String(format: "%X", st))"
++            }
++            return "0x\(String(code, radix: 16)):\(st & 0x80 != 0 ? "NAK" : "ACK")/\(reason):\(hexr)"
++        }
++        return "0x\(String(code, radix: 16)):noresp"
 +    }
 +
 +    /// K = tail8 ⊕ (rand<<8 shift-XOR) ⊕ F(rand[7]) — the mirror test, valid whenever F(rand[7]) is known.
