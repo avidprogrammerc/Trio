@@ -1,6 +1,6 @@
 diff --git a/LibreSensor/SensorPairing/Gen2Session.swift b/LibreSensor/SensorPairing/Gen2Session.swift
 new file mode 100644
-index 0000000..1f0d7ae
+index 0000000..77e9a5d
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen2Session.swift
 @@ -0,0 +1,123 @@
@@ -52,16 +52,16 @@ index 0000000..1f0d7ae
 +    /// Populated from oracle plates; entries are XOR-decomposable if F is GF2-linear.
 +    /// Bits: index = challenge byte 7; value = 8-byte salt. 0x00 is identically zero.
 +    public static var FTable: [UInt8: Data] = [
-+        0x01: Data(hex: "f83a51f90542211c"),
-+        0x0f: Data(hex: "75dbc119c0d8c8d5"),
-+        0x09: Data(hex: "aa51faac292466ed"),
-+        0x0b: Data(hex: "1d08c15b9ded68cd"),
-+        0x39: Data(hex: "e266f71942daaf19"),
-+        0x55: Data(hex: "3803cc5f2aababe4"),
-+        0x80: Data(hex: "234c4c76a4b5d897"),
-+        0xf0: Data(hex: "66e0bca54c8eeaef"),
-+        0xff: Data(hex: "c48dfa4762c3003f"),
-+        0x11: Data(hex: "eacf9fe26a573604"),
++        0x01: Data(hex: "f83a51f90542211c")!,
++        0x0f: Data(hex: "75dbc119c0d8c8d5")!,
++        0x09: Data(hex: "aa51faac292466ed")!,
++        0x0b: Data(hex: "1d08c15b9ded68cd")!,
++        0x39: Data(hex: "e266f71942daaf19")!,
++        0x55: Data(hex: "3803cc5f2aababe4")!,
++        0x80: Data(hex: "234c4c76a4b5d897")!,
++        0xf0: Data(hex: "66e0bca54c8eeaef")!,
++        0xff: Data(hex: "c48dfa4762c3003f")!,
++        0x11: Data(hex: "eacf9fe26a573604")!,
 +    ]
 +
 +    /// Compute the 15-byte auth response body (without head entropy) for a challenge.
@@ -129,10 +129,10 @@ index 0000000..1f0d7ae
 +// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
 diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 new file mode 100644
-index 0000000..b6c5108
+index 0000000..9918c42
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
-@@ -0,0 +1,154 @@
+@@ -0,0 +1,155 @@
 +//
 +//  Gen3Ceremony.swift
 +//  LibreTransmitter
@@ -200,12 +200,13 @@ index 0000000..b6c5108
 +    }
 +
 +    // Candidate air encodings for "auth with echoed challenge" (measured dispatcher: P2 cmd=0x1928, args=001f).
-+    private static var candidateAuthEncodings: [(code: Int, params: (Data) -> Data)] {
++    private struct AuthEncoding { let code: Int; let prefix: Data }
++    private static var candidateAuthEncodings: [AuthEncoding] {
 +        [
-+            { (chal: Data) in (0xB2, Data([0x28]) + chal) }(),      // T5T-style write, sub 0x28
-+            { (chal: Data) in (0x19, Data([0x28, 0x00, 0x1F]) + chal) }(), // dispatcher-shaped
-+            { (chal: Data) in (0xA2, Data([0x1F]) + chal) }(),      // Libre2EU-adjacent
-+            { (chal: Data) in (0xB4, Data([0x28]) + chal) }(),      // update-family
++            AuthEncoding(code: 0xB2, prefix: Data([0x28])),             // T5T-style write, sub 0x28
++            AuthEncoding(code: 0x19, prefix: Data([0x28, 0x00, 0x1F])), // dispatcher-shaped
++            AuthEncoding(code: 0xA2, prefix: Data([0x1F])),             // Libre2EU-adjacent
++            AuthEncoding(code: 0xB4, prefix: Data([0x28])),             // update-family
 +        ]
 +    }
 +
@@ -224,18 +225,18 @@ index 0000000..b6c5108
 +        }
 +
 +        var ladder = candidateAuthEncodings
-+        if let p = proven, let idx = ladder.firstIndex(where: { $0.code == p.authCode }) {
++        if let p = proven, let idx = ladder.firstIndex(where: { $0.code == p.authCode && $0.prefix == p.authPrefix }) {
 +            ladder.insert(ladder.remove(at: idx), at: 0)   // remember what worked
 +        }
 +
-+        func attempt(_ encoding: (code: Int, params: (Data) -> Data), rest: [(code: Int, params: (Data) -> Data)]) {
++        func attempt(_ encoding: AuthEncoding, rest: [AuthEncoding]) {
 +            tag.customCommand(requestFlags: .highDataRate,
 +                              customCommandCode: encoding.code,
-+                              customRequestParameters: encoding.params(challenge)) { response, error in
++                              customRequestParameters: encoding.prefix + challenge) { response, error in
 +                let status = error == nil ? "ok" : "err"
 +                if error == nil, response.count >= 15, response.starts(with: Data([0x00, 0x00, 0x00, 0x1F])) {
 +                    // Proven shape: 0000001f || head7 || tail8
-+                    proven = ProvenEncoding(authCode: encoding.code, authPrefix: encoding.params(challenge).prefix(3))
++                    proven = ProvenEncoding(authCode: encoding.code, authPrefix: encoding.prefix)
 +                    let tail = response.subdata(in: 7 ..< 15)
 +                    let learnedK = learnK(challenge: challenge, tail8: tail)
 +                    completion(Outcome(pairingSucceeded: true, streamingEnabled: true,
