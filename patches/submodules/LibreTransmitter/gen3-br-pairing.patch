@@ -129,10 +129,10 @@ index 0000000..77e9a5d
 +// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
 diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 new file mode 100644
-index 0000000..9918c42
+index 0000000..b550486
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
-@@ -0,0 +1,155 @@
+@@ -0,0 +1,182 @@
 +//
 +//  Gen3Ceremony.swift
 +//  LibreTransmitter
@@ -155,8 +155,28 @@ index 0000000..9918c42
 +
 +import Foundation
 +import CoreNFC
++import os
++import UIKit
 +
 +public final class Gen3Ceremony {
++
++    private static let log = Logger(subsystem: "com.trio.libretransmitter.gen3", category: "ceremony")
++
++    /// Selectable, persistent alert so diagnostics survive the moment.
++    static func present(_ text: String) {
++        log.log("ceremony: \(text, privacy: .public)")
++        UserDefaults.standard.set(text, forKey: "Gen3LastDiagnostics")
++        DispatchQueue.main.async {
++            let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
++            guard let root = scene?.windows.first(where: { $0.isKeyWindow })?.rootViewController else { return }
++            var top = root
++            while let v = top.presentedViewController { top = v }
++            let alert = UIAlertController(title: "Gen3 ceremony", message: text, preferredStyle: .alert)
++            alert.addAction(UIAlertAction(title: "Copy", style: .default) { _ in UIPasteboard.general.string = text })
++            alert.addAction(UIAlertAction(title: "OK", style: .cancel))
++            top.present(alert, animated: true)
++        }
++    }
 +
 +    public struct Outcome {
 +        public let pairingSucceeded: Bool
@@ -218,9 +238,11 @@ index 0000000..9918c42
 +                           completion: @escaping (Outcome) -> Void) {
 +
 +        guard let challenge = findChallenge(in: readableBlob) else {
++            let msg = "no challenge fingerprint in \(readableBlob.count)B of tag memory (raw:\(hex(readableBlob.prefix(64))))"
++            present(msg)
 +            completion(Outcome(pairingSucceeded: false, streamingEnabled: false,
 +                               discoveredChallenge: nil, authResponse: nil, learnedKeyK: nil,
-+                               diagnostics: "no challenge fingerprint in \(readableBlob.count)B"))
++                               diagnostics: msg))
 +            return
 +        }
 +
@@ -239,19 +261,24 @@ index 0000000..9918c42
 +                    proven = ProvenEncoding(authCode: encoding.code, authPrefix: encoding.prefix)
 +                    let tail = response.subdata(in: 7 ..< 15)
 +                    let learnedK = learnK(challenge: challenge, tail8: tail)
++                    let msg = "AUTH OK via 0x\(String(encoding.code, radix: 16)) | chal=\(hex(challenge)) | rsp=\(hex(response)) | K=\(learnedK.map(hex) ?? "F-row pending")"
++                    present(msg)
 +                    completion(Outcome(pairingSucceeded: true, streamingEnabled: true,
 +                                       discoveredChallenge: challenge, authResponse: response,
 +                                       learnedKeyK: learnedK,
-+                                       diagnostics: "auth via 0x\(String(encoding.code, radix: 16)) rsp=\(hex(response)) k=\(learnedK.map(hex) ?? "pending")"))
++                                       diagnostics: msg))
 +                    return
 +                }
-+                let note = "0x\(String(encoding.code, radix: 16)):\(status):\(response.count)B "
++                let note = "0x\(String(encoding.code, radix: 16)):\(status):\(hex(response.prefix(8))) "
++                log.log("ladder miss: \(note, privacy: .public)")
 +                if let next = rest.first {
 +                    attempt(next, rest: Array(rest.dropFirst()))
 +                } else {
++                    let msg = "challenge found but no auth encoding accepted. chal=\(hex(challenge)) ladder[\(note)]"
++                    present(msg)
 +                    completion(Outcome(pairingSucceeded: false, streamingEnabled: false,
 +                                       discoveredChallenge: challenge, authResponse: nil, learnedKeyK: nil,
-+                                       diagnostics: "chal=\(hex(challenge)) ladder[\(note)]"))
++                                       diagnostics: msg))
 +                }
 +            }
 +        }
