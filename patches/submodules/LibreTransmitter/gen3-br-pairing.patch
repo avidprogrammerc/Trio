@@ -129,10 +129,10 @@ index 0000000..77e9a5d
 +// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
 diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 new file mode 100644
-index 0000000..1bfb51c
+index 0000000..48ed6f6
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
-@@ -0,0 +1,200 @@
+@@ -0,0 +1,203 @@
 +//
 +//  Gen3Ceremony.swift
 +//  LibreTransmitter
@@ -212,17 +212,20 @@ index 0000000..1bfb51c
 +    // Derived from dispatcher words observed in Android captures: 0x19xx family + 0x3C/0x39/0x30 guesses
 +    // (Libre-adjacent instruction sets) + the raw sub-opcodes seen in P1/P2 logs.
 +    private static let challengeReads: [(code: UInt8, prefix: Data)] = [
-+        // Post-SELECT reads (SELECT = 0xA1 ‖ 22, done first by run()): state may unlock them
-+        (vendor, Data()),                                // bare channel post-select
-+        (vendor, Data([0x23, 0x00, 0x0A])),              // READ family after select
-+        (vendor, Data([0x33, 0x00, 0x0A])),              // READ alt family
-+        (vendor, Data([0x19, 0x18])),                    // dispatcher classics, re-tried post-select
-+        (vendor, Data([0x19, 0x08])),
-+        (vendor, Data([0x19, 0x00])),
-+        (vendor, Data([0x2B, 0x28, 0x00, 0x1F])),        // length-prefixed shapes, re-tried post-select
-+        (vendor, Data([0x1B, 0x28, 0x00, 0x1F])),
-+        (vendor, Data([0x21, 0x00, 0x0A])),              // READ_SINGLE-shaped
-+        (vendor, Data([0x24, 0x00, 0x0A])),
++        // raw T5T-family reads: CoreNFC's wrapper failed; raw opcodes with stack-added flag may not
++        (0x23, Data([0x00, 0x10])),                    // READ_MULTIPLE blocks 0..15
++        (0x23, Data([0x10, 0x10])),                    // blocks 16..31
++        (0x23, Data([0x20, 0x10])),                    // blocks 32..47
++        (0x23, Data([0x30, 0x10])),                    // blocks 48..63
++        (0x21, Data([0x1C])),                          // READ_SINGLE probes at plausible offsets
++        (0x21, Data([0x1D])),
++        (0x21, Data([0x1E])),
++        (0x21, Data([0x1F])),
++        // engine channel doorbell (patchInfo + identity block proven to answer)
++        (vendor, Data()),
++        (vendor, Data([0x22])),
++        (vendor, Data([0x19, 0x18])),
++        (vendor, Data([0x19, 0x78])),                  // FRAM-read word from live capture
 +    ]
 +
 +    // SELECT step candidates (0x22 answered pre-refactor; file id variants to find the applet)
