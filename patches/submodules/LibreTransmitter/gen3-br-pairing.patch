@@ -129,10 +129,10 @@ index 0000000..77e9a5d
 +// Full fixture table regenerated nightly by f_fit.py; paste here once F closes.
 diff --git a/LibreSensor/SensorPairing/Gen3Ceremony.swift b/LibreSensor/SensorPairing/Gen3Ceremony.swift
 new file mode 100644
-index 0000000..815fac0
+index 0000000..d6e895b
 --- /dev/null
 +++ b/LibreSensor/SensorPairing/Gen3Ceremony.swift
-@@ -0,0 +1,208 @@
+@@ -0,0 +1,211 @@
 +//
 +//  Gen3Ceremony.swift
 +//  LibreTransmitter
@@ -231,6 +231,9 @@ index 0000000..815fac0
 +        (vendor, Data([0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5])),          // a5×8 alone
 +        (vendor, Data([0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0x19, 0x00])),  // a5×8 + get-challenge
 +        (vendor, Data([0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0x19, 0x08])),  // a5×8 + select-ish
++        (vendor, Data([0x28, 0x01, 0x1F])),                  // rig-form auth probe (zero chal)
++        (vendor, Data([0x1C, 0x28, 0x01, 0x1F])),            // len + rig form
++        (vendor, Data([0x1C, 0x28, 0x00, 0x1F])),            // len + app form
 +    ]
 +
 +    // SELECT step candidates (0x22 answered pre-refactor; file id variants to find the applet)
@@ -244,12 +247,12 @@ index 0000000..815fac0
 +
 +    // Auth frame candidates: engine frame for P2 0x1928 args 001f, prefix shapes derived from smali.
 +    private static let authFrames: [(code: UInt8, prefix: Data)] = [
-+        (vendor, Data([0x1C, 0x28, 0x00, 0x1F])),        // len=28 (3+25) + INS + args
-+        (vendor, Data([0x28, 0x00, 0x1F])),              // INS + args bare (engine-style)
-+        (vendor, Data([0x19, 0x28, 0x00, 0x1F])),        // full dispatcher word
-+        (vendor, Data([0x41, 0x28, 0x00, 0x1F])),        // len=65 alt counting
-+        (vendor, Data([0x00, 0x1F])),                    // args only
-+        (vendor, Data([0x1F])),                          // cmdByte only
++        (vendor, Data([0x28, 0x01, 0x1F])),              // rig replay form: INS 011f
++        (vendor, Data([0x1C, 0x28, 0x01, 0x1F])),        // len(3+25) + rig form
++        (vendor, Data([0x28, 0x00, 0x1F])),              // app-capture form: INS 001f
++        (vendor, Data([0x1C, 0x28, 0x00, 0x1F])),        // len + app form
++        (vendor, Data([0x19, 0x28, 0x01, 0x1F])),        // dispatcher word + rig args
++        (vendor, Data([0x01, 0x1F])),                    // args only (rig)
 +    ]
 +
 +    /// Challenge hunt then auth; completion always fires; every step narrated.
