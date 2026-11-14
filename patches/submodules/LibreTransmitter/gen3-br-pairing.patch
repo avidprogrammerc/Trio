@@ -377164,10 +377164,40 @@ index ce31cd4..a8fbc0a 100644
 +    }
 +}
 diff --git a/LibreTransmitter.xcodeproj/project.pbxproj b/LibreTransmitter.xcodeproj/project.pbxproj
-index 2e9477d..c9f40e4 100644
+index 2e9477d..2fdff7f 100644
 --- a/LibreTransmitter.xcodeproj/project.pbxproj
 +++ b/LibreTransmitter.xcodeproj/project.pbxproj
-@@ -992,6 +992,9 @@
+@@ -134,6 +134,9 @@
+ 		C1C318D72A47638E00C6F29F /* MockSensorPairingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1BDBAFE2A44FFD800A787D1 /* MockSensorPairingService.swift */; };
+ 		C1C318D92A478E0000C6F29F /* HKUnit.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C318D82A478E0000C6F29F /* HKUnit.swift */; };
+ 		C1D819B32AC9B60100C9416E /* LimitedQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27850BA2256724EF0020D109 /* LimitedQueue.swift */; };
++		96CD7BA8028F7AC11A3023A3 /* gen2elf.c in Sources */ = {isa = PBXBuildFile; fileRef = 9A6896FA1DC597382830996B /* gen2elf.c */; };
++		B7F991D6713D878AA629E5D0 /* EngineBlob.c in Sources */ = {isa = PBXBuildFile; fileRef = E7ED2C7905356BC46C5284F9 /* EngineBlob.c */; };
++		E075CC7852226DCE41C2F453 /* Gen3Engine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17A086C4C4B9D590AE469FF /* Gen3Engine.swift */; };
+ /* End PBXBuildFile section */
+ 
+ /* Begin PBXContainerItemProxy section */
+@@ -313,6 +316,9 @@
+ 		C1BDBAFE2A44FFD800A787D1 /* MockSensorPairingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockSensorPairingService.swift; sourceTree = "<group>"; };
+ 		C1C318CF2A4748A100C6F29F /* MockBluetoothSearcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockBluetoothSearcher.swift; sourceTree = "<group>"; };
+ 		C1C318D82A478E0000C6F29F /* HKUnit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HKUnit.swift; sourceTree = "<group>"; };
++		9A6896FA1DC597382830996B /* gen2elf.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = LibreSensor/SensorPairing/Engine/gen2elf.c; sourceTree = SOURCE_ROOT; };
++		E7ED2C7905356BC46C5284F9 /* EngineBlob.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = LibreSensor/SensorPairing/Engine/EngineBlob.c; sourceTree = SOURCE_ROOT; };
++		F17A086C4C4B9D590AE469FF /* Gen3Engine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibreSensor/SensorPairing/Engine/Gen3Engine.swift; sourceTree = SOURCE_ROOT; };
+ /* End PBXFileReference section */
+ 
+ /* Begin PBXFrameworksBuildPhase section */
+@@ -360,6 +366,9 @@
+ 		2746C74026DD0F5600E31BD9 /* Setup */ = {
+ 			isa = PBXGroup;
+ 			children = (
++				F17A086C4C4B9D590AE469FF /* Gen3Engine.swift */,
++				E7ED2C7905356BC46C5284F9 /* EngineBlob.c */,
++				9A6896FA1DC597382830996B /* gen2elf.c */,
+ 				27850D4B25672DFB0020D109 /* BluetoothSelection.swift */,
+ 				2746C74126DD0F8800E31BD9 /* Libre2DirectSetup.swift */,
+ 				27A5912626E0E32C00A7EE36 /* ModeSelectionView.swift */,
+@@ -992,6 +1001,9 @@
  				27DD8F26268FA75A00649010 /* SensorInfo.swift in Sources */,
  				27850DC425672F640020D109 /* GlucoseSmoothing.swift in Sources */,
  				27F93B2A2816B7FF00EE39A7 /* LibreTransmitterManager+Libre2EU.swift in Sources */,
@@ -377177,7 +377207,7 @@ index 2e9477d..c9f40e4 100644
  				27850DCF25672F780020D109 /* CRC.swift in Sources */,
  				2764E86126FC6DC10016A585 /* Features.swift in Sources */,
  				27ED67B82698EF38003E5DAB /* AlarmStatus.swift in Sources */,
-@@ -1246,6 +1249,8 @@
+@@ -1246,6 +1258,8 @@
  				ENABLE_MODULE_VERIFIER = "$(CLANG_MODULES_ENABLE_VERIFIER_TOOL)";
  				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
  				INFOPLIST_FILE = LibreTransmitter/Info.plist;
@@ -377186,7 +377216,7 @@ index 2e9477d..c9f40e4 100644
  				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
  				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
  				LD_RUNPATH_SEARCH_PATHS = (
-@@ -1279,6 +1284,8 @@
+@@ -1279,6 +1293,8 @@
  				ENABLE_MODULE_VERIFIER = "$(CLANG_MODULES_ENABLE_VERIFIER_TOOL)";
  				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
  				INFOPLIST_FILE = LibreTransmitter/Info.plist;
