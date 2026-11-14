@@ -1,16 +1,258 @@
 diff --git a/Bluetooth/LibreTransmitterMetadata.swift b/Bluetooth/LibreTransmitterMetadata.swift
-index dfe50db..dfea6c9 100644
+index dfe50db..4b3534a 100644
 --- a/Bluetooth/LibreTransmitterMetadata.swift
 +++ b/Bluetooth/LibreTransmitterMetadata.swift
-@@ -110,7 +110,7 @@ public enum SensorType: String, CustomStringConvertible {
-         case 0xDF, 0xA2: self = .libre1
-         case 0xE5, 0xE6: self = .libreUS14day
-         case 0x70: self = .libreProH
+@@ -1,125 +1,125 @@
+-//
+-//  MiaoMiao.swift
+-//  LibreMonitor
+-//
+-//  Created by Uwe Petersen on 02.11.18.
+-//  Copyright © 2018 Uwe Petersen. All rights reserved.
+-//
+-
+-import Foundation
+-
+-public struct LibreTransmitterMetadata: CustomStringConvertible {
+-    // hardware number
+-    public let hardware: String?
+-    // software number
+-    public let firmware: String?
+-    // battery level, percentage between 0 % and 100 %
+-    public let battery: Int?
+-    // battery level String
+-    public let batteryString: String
+-
+-    public let macAddress: String?
+-
+-    public let name: String
+-
+-    public let patchInfo: Data?
+-    public let uid: [UInt8]?
+-
+-    init(hardware: String?, firmware: String?, battery: Int?, name: String, macAddress: String?, patchInfo: Data?, uid: [UInt8]?) {
+-        self.hardware = hardware
+-        self.firmware = firmware
+-        self.battery = battery
+-        let batteryString = battery == nil ? "-" : "\(battery!)"
+-        self.batteryString = batteryString
+-        self.macAddress = macAddress
+-        self.name = name
+-        self.patchInfo = patchInfo
+-        self.uid = uid
+-    }
+-
+-    public var description: String {
+-        "Transmitter: \(name), Hardware: \(String(describing: hardware)), firmware: \(String(describing: firmware))" +
+-        "battery: \(batteryString), macAddress: \(String(describing: macAddress)), patchInfo: \(String(describing: patchInfo)), uid: \(String(describing: uid))"
+-    }
+-
+-    public func sensorType() -> SensorType? {
+-        guard let patchInfo else { return nil }
+-        return SensorType(patchInfo: patchInfo)
+-    }
+-}
+-
+-extension String {
+-    // https://stackoverflow.com/questions/39677330/how-does-string-substring-work-in-swift
+-    // usage
+-    // let s = "hello"
+-    // s[0..<3] // "hel"
+-    // s[3..<s.count] // "lo"
+-    subscript(_ range: CountableRange<Int>) -> String {
+-        let idx1 = index(startIndex, offsetBy: max(0, range.lowerBound))
+-        let idx2 = index(startIndex, offsetBy: min(self.count, range.upperBound))
+-        return String(self[idx1..<idx2])
+-    }
+-
+-    func hexadecimal() -> Data? {
+-        var data = Data(capacity: count / 2)
+-        // swiftlint:disable:next force_try
+-        let regex = try! NSRegularExpression(pattern: "[0-9a-f]{1,2}", options: .caseInsensitive)
+-        regex.enumerateMatches(in: self, range: NSRange(startIndex..., in: self)) { match, _, _ in
+-            let byteString = (self as NSString).substring(with: match!.range)
+-            let num = UInt8(byteString, radix: 16)!
+-            data.append(num)
+-        }
+-
+-        guard data.count > 0 else { return nil }
+-
+-        return data
+-    }
+-}
+-
+-public enum SensorFamily: Int, CustomStringConvertible {
+-    case libre      = 0
+-    case librePro   = 1
+-    case libre2     = 3
+-    case libreSense = 7
+-
+-    public var description: String {
+-        switch self {
+-        case .libre:      return "Libre"
+-        case .librePro:   return "Libre Pro"
+-        case .libre2:     return "Libre 2"
+-        case .libreSense: return "Libre Sense"
+-        }
+-    }
+-}
+-
+-public enum SensorType: String, CustomStringConvertible {
+-    case libre1       = "Libre 1"
+-    case libreUS14day = "Libre US 14d"
+-    case libreProH    = "Libre Pro/H"
+-    case libre2       = "Libre 2"
+-    case libre2US     = "Libre 2 US"
+-    case libre2CA     = "Libre 2 CA"
+-    case libreSense   = "Libre Sense"
+-    case libre3       = "Libre 3"
+-    case dexcomOne    = "Dexcom ONE"
+-    case dexcomG7     = "Dexcom G7"
+-    case unknown      = "Libre"
+-
+-    public init(patchInfo: Data) {
+-        switch patchInfo[0] {
+-        case 0xDF, 0xA2: self = .libre1
+-        case 0xE5, 0xE6: self = .libreUS14day
+-        case 0x70: self = .libreProH
 -        case 0xC5, 0x9D, 0xC6, 0x7F: self = .libre2
-+        case 0xC5, 0x9D, 0xC6, 0x7F, 0x2B: self = .libre2 // 0x2B = Brazilian Libre 2/2+ (patchInfo e.g. 2B 0A 3A 08 1F E1)
-         case 0x76: self = patchInfo[3] == 0x02 ? .libre2US : patchInfo[3] == 0x04 ? .libre2CA : patchInfo[2] >> 4 == 7 ? .libreSense : .unknown
-         default:
-             if patchInfo.count == 24 {
+-        case 0x76: self = patchInfo[3] == 0x02 ? .libre2US : patchInfo[3] == 0x04 ? .libre2CA : patchInfo[2] >> 4 == 7 ? .libreSense : .unknown
+-        default:
+-            if patchInfo.count == 24 {
+-                self = .libre3
+-            } else {
+-                self = .unknown
+-            }
+-        }
+-    }
+-
+-    public var description: String { self.rawValue }
+-}
++//
++//  MiaoMiao.swift
++//  LibreMonitor
++//
++//  Created by Uwe Petersen on 02.11.18.
++//  Copyright © 2018 Uwe Petersen. All rights reserved.
++//
++
++import Foundation
++
++public struct LibreTransmitterMetadata: CustomStringConvertible {
++    // hardware number
++    public let hardware: String?
++    // software number
++    public let firmware: String?
++    // battery level, percentage between 0 % and 100 %
++    public let battery: Int?
++    // battery level String
++    public let batteryString: String
++
++    public let macAddress: String?
++
++    public let name: String
++
++    public let patchInfo: Data?
++    public let uid: [UInt8]?
++
++    init(hardware: String?, firmware: String?, battery: Int?, name: String, macAddress: String?, patchInfo: Data?, uid: [UInt8]?) {
++        self.hardware = hardware
++        self.firmware = firmware
++        self.battery = battery
++        let batteryString = battery == nil ? "-" : "\(battery!)"
++        self.batteryString = batteryString
++        self.macAddress = macAddress
++        self.name = name
++        self.patchInfo = patchInfo
++        self.uid = uid
++    }
++
++    public var description: String {
++        "Transmitter: \(name), Hardware: \(String(describing: hardware)), firmware: \(String(describing: firmware))" +
++        "battery: \(batteryString), macAddress: \(String(describing: macAddress)), patchInfo: \(String(describing: patchInfo)), uid: \(String(describing: uid))"
++    }
++
++    public func sensorType() -> SensorType? {
++        guard let patchInfo else { return nil }
++        return SensorType(patchInfo: patchInfo)
++    }
++}
++
++extension String {
++    // https://stackoverflow.com/questions/39677330/how-does-string-substring-work-in-swift
++    // usage
++    // let s = "hello"
++    // s[0..<3] // "hel"
++    // s[3..<s.count] // "lo"
++    subscript(_ range: CountableRange<Int>) -> String {
++        let idx1 = index(startIndex, offsetBy: max(0, range.lowerBound))
++        let idx2 = index(startIndex, offsetBy: min(self.count, range.upperBound))
++        return String(self[idx1..<idx2])
++    }
++
++    func hexadecimal() -> Data? {
++        var data = Data(capacity: count / 2)
++        // swiftlint:disable:next force_try
++        let regex = try! NSRegularExpression(pattern: "[0-9a-f]{1,2}", options: .caseInsensitive)
++        regex.enumerateMatches(in: self, range: NSRange(startIndex..., in: self)) { match, _, _ in
++            let byteString = (self as NSString).substring(with: match!.range)
++            let num = UInt8(byteString, radix: 16)!
++            data.append(num)
++        }
++
++        guard data.count > 0 else { return nil }
++
++        return data
++    }
++}
++
++public enum SensorFamily: Int, CustomStringConvertible {
++    case libre      = 0
++    case librePro   = 1
++    case libre2     = 3
++    case libreSense = 7
++
++    public var description: String {
++        switch self {
++        case .libre:      return "Libre"
++        case .librePro:   return "Libre Pro"
++        case .libre2:     return "Libre 2"
++        case .libreSense: return "Libre Sense"
++        }
++    }
++}
++
++public enum SensorType: String, CustomStringConvertible {
++    case libre1       = "Libre 1"
++    case libreUS14day = "Libre US 14d"
++    case libreProH    = "Libre Pro/H"
++    case libre2       = "Libre 2"
++    case libre2US     = "Libre 2 US"
++    case libre2CA     = "Libre 2 CA"
++    case libreSense   = "Libre Sense"
++    case libre3       = "Libre 3"
++    case dexcomOne    = "Dexcom ONE"
++    case dexcomG7     = "Dexcom G7"
++    case unknown      = "Libre"
++
++    public init(patchInfo: Data) {
++        switch patchInfo[0] {
++        case 0xDF, 0xA2: self = .libre1
++        case 0xE5, 0xE6: self = .libreUS14day
++        case 0x70: self = .libreProH
++        case 0xC5, 0x9D, 0xC6, 0x7F: self = .libre2
++        case 0x76: self = patchInfo[3] == 0x02 ? .libre2US : patchInfo[3] == 0x04 ? .libre2CA : patchInfo[2] >> 4 == 7 ? .libreSense : .unknown
++        default:
++            if patchInfo.count == 24 {
++                self = .libre3
++            } else {
++                self = .unknown
++            }
++        }
++    }
++
++    public var description: String { self.rawValue }
++}
 diff --git a/LibreSensor/SensorPairing/Engine/EngineBlob.c b/LibreSensor/SensorPairing/Engine/EngineBlob.c
 new file mode 100644
 index 0000000..3f54e56
@@ -376101,13 +376343,591 @@ index 0000000..913dd64
 +    }
 +}
 diff --git a/LibreSensor/SensorPairing/SensorPairingService.swift b/LibreSensor/SensorPairing/SensorPairingService.swift
-index ce31cd4..e712931 100644
+index ce31cd4..a8fbc0a 100644
 --- a/LibreSensor/SensorPairing/SensorPairingService.swift
 +++ b/LibreSensor/SensorPairing/SensorPairingService.swift
-@@ -183,15 +183,39 @@ public class SensorPairingService: NSObject, NFCTagReaderSessionDelegate, Sensor
- 
-                                         print("got patchhex: \(patchHex) and sensorType: \(sensorType), with mac address: \(macAddress)")
- 
+@@ -1,396 +1,420 @@
+-//
+-//  SensorPairingService.swift
+-//  LibreDirect
+-//
+-//  Created by Reimar Metzen on 06.07.21.
+-//
+-
+-import Foundation
+-import Combine
+-import CoreNFC
+-
+-public enum PairingError: Error {
+-    case noTagInfo
+-    case noSensorData
+-    case wrongSensorType
+-    case decryptionError
+-    case noPatchInfo
+-    case nfcNotSupported
+-}
+-
+-extension PairingError: LocalizedError {
+-    public var errorDescription: String? {
+-        switch self {
+-        case .noTagInfo:
+-            return LocalizedString("Could not get tag info", comment: "error description for PairingError.noTagInfo")
+-        case .noSensorData:
+-            return LocalizedString("Could not get sensor data", comment: "error description for PairingError.noSensorData")
+-        case .wrongSensorType:
+-            return LocalizedString("Wrong sensor type detected", comment: "error description for PairingError.wrongSensorType")
+-        case .decryptionError:
+-            return LocalizedString("Could not decrypt sensor contents", comment: "error description for PairingError.decryptionError")
+-        case .noPatchInfo:
+-            return LocalizedString("Could not get patch info", comment: "error description for PairingError.noPatchInfo")
+-        case .nfcNotSupported:
+-            return LocalizedString("Phone NFC not supported!", comment: "error description for PairingError.nfcNotSupported")
+-        }
+-    }
+-
+-    public var recoverySuggestion: String? {
+-        switch self {
+-        case .nfcNotSupported:
+-            return LocalizedString("Your phone or app is not enabled for NFC communications, which is needed to pair to libre2 sensors", comment: "Recovery suggestion for PairingError.nfcNotSupported")
+-        default:
+-            return nil
+-        }
+-    }
+-}
+-
+-public class SensorPairingService: NSObject, NFCTagReaderSessionDelegate, SensorPairingProtocol {
+-    private var session: NFCTagReaderSession?
+-    private var readingsSubject = PassthroughSubject<SensorPairingInfo, Never>()
+-    private var errorSubject  = PassthroughSubject<Error, Never>()
+-
+-    private let nfcQueue = DispatchQueue(label: "libre-direct.nfc-queue")
+-    private let accessQueue = DispatchQueue(label: "libre-direct.nfc-access-queue")
+-
+-    private let unlockCode: UInt32 = 42 // 42
+-
+-    public var onCancel: (() -> Void)?
+-
+-    public func pairSensor() throws {
+-        if !Features.phoneNFCAvailable {
+-            throw PairingError.nfcNotSupported
+-        }
+-        print("Asked to pair sensor! phoneNFCAvailable: \(Features.phoneNFCAvailable)")
+-
+-        if NFCTagReaderSession.readingAvailable {
+-            accessQueue.async {
+-                self.session = NFCTagReaderSession(pollingOption: .iso15693, delegate: self, queue: self.nfcQueue)
+-                self.session?.alertMessage = LocalizedString("Hold the top of your iPhone near the sensor to pair", comment: "")
+-                self.session?.begin()
+-            }
+-        }
+-    }
+-
+-    public var publisher: AnyPublisher<SensorPairingInfo, Never> {
+-        readingsSubject.eraseToAnyPublisher()
+-    }
+-    
+-    public var errorPublisher: AnyPublisher<Error, Never> {
+-        errorSubject.eraseToAnyPublisher()
+-    }
+-    
+-    private func sendError(_ error: Error) {
+-        DispatchQueue.main.async { [weak self] in
+-            self?.errorSubject.send(error)
+-        }
+-    }
+-
+-    private func sendUpdate(_ info: SensorPairingInfo) {
+-        DispatchQueue.main.async { [weak self] in
+-            self?.readingsSubject.send(info)
+-        }
+-    }
+-
+-    public func tagReaderSessionDidBecomeActive(_ session: NFCTagReaderSession) {
+-    }
+-
+-    public func tagReaderSession(_ session: NFCTagReaderSession, didInvalidateWithError error: Error) {
+-        if let error = error as? NFCReaderError, error.code != .readerSessionInvalidationErrorUserCanceled {
+-            session.invalidate(errorMessage: "Connection failure: \(error.localizedDescription)")
+-            self.sendError(error)
+-        }
+-
+-        self.onCancel?()
+-    }
+-
+-    public func tagReaderSession(_ session: NFCTagReaderSession, didDetect tags: [NFCTag]) {
+-        guard let firstTag = tags.first else { return }
+-        guard case .iso15693(let tag) = firstTag else { return }
+-
+-        let blocks = 43
+-        let requestBlocks = 3
+-
+-        let requests = Int(ceil(Double(blocks) / Double(requestBlocks)))
+-        let remainder = blocks % requestBlocks
+-        var dataArray = [Data](repeating: Data(), count: blocks)
+-
+-        session.connect(to: firstTag) { error in
+-            if error != nil {
+-                return
+-            }
+-
+-            tag.getSystemInfo(requestFlags: [.address, .highDataRate]) { result in
+-                switch result {
+-                case .failure:
+-                    session.invalidate(errorMessage: PairingError.noTagInfo.localizedDescription)
+-                    self.sendError(PairingError.noTagInfo)
+-                    return
+-                case .success:
+-                    tag.customCommand(requestFlags: .highDataRate, customCommandCode: 0xA1, customRequestParameters: Data()) { response, error in
+-
+-                        for i in 0 ..< requests {
+-                            tag.readMultipleBlocks(
+-                                requestFlags: [.highDataRate, .address],
+-                                // swiftlint:disable:next line_length
+-                                blockRange: NSRange(UInt8(i * requestBlocks) ... UInt8(i * requestBlocks + (i == requests - 1 ? (remainder == 0 ? requestBlocks : remainder) : requestBlocks) - (requestBlocks > 1 ? 1 : 0)))
+-                                
+-                            ) { blockArray, error in
+-                                if error != nil {
+-                                    if i != requests - 1 { return }
+-                                } else {
+-                                    for j in 0 ..< blockArray.count {
+-                                        dataArray[i * requestBlocks + j] = blockArray[j]
+-                                    }
+-                                }
+-
+-                                if i == requests - 1 {
+-                                    var fram = Data()
+-
+-                                    for (_, data) in dataArray.enumerated() {
+-                                        if data.count > 0 {
+-                                            fram.append(data)
+-                                        }
+-                                    }
+-
+-                                    // get sensorUID and patchInfo and send to delegate
+-                                    let sensorUID = Data(tag.identifier.reversed())
+-                                    let patchInfo = response
+-
+-                                    // patchInfo should have length 6, which sometimes is not the case, as there are occuring crashes in nfcCommand and Libre2BLEUtilities.streamingUnlockPayload
+-                                    guard patchInfo.count >= 6 else {
+-                                        session.invalidate(errorMessage: PairingError.noPatchInfo.localizedDescription)
+-                                        return
+-                                    }
+-
+-                                    let subCmd: Subcommand = .enableStreaming
+-                                    let cmd = self.nfcCommand(subCmd, unlockCode: self.unlockCode, patchInfo: patchInfo, sensorUID: sensorUID)
+-
+-                                    tag.customCommand(requestFlags: .highDataRate, customCommandCode: Int(cmd.code), customRequestParameters: cmd.parameters) { response, _ in
+-                                        var streamingEnabled = false
+-                                        var macAddress : String?
+-
+-                                        if subCmd == .enableStreaming && response.count == 6 {
+-                                            streamingEnabled = true
+-                                            macAddress = Data(response.reversed()).hexEncodedString().uppercased()
+-                                        }
+-
+-                                        
+-
+-                                        let patchHex = patchInfo.hexEncodedString()
+-                                        let sensorType = SensorType(patchInfo: patchInfo)
+-
+-                                        print("got patchhex: \(patchHex) and sensorType: \(sensorType), with mac address: \(macAddress)")
+-
+-                                        guard sensorUID.count == 8 && patchInfo.count == 6 && fram.count == 344 else {
+-                                            // self.readingsSubject.send(completion: .failure(LibreError.noSensorData))
+-                                            session.invalidate(errorMessage: PairingError.noSensorData.localizedDescription)
+-                                            self.sendError(PairingError.noSensorData)
+-                                            return
+-                                        }
+-                                        
+-                                        guard sensorType == .libre2  else {
+-                                            session.invalidate(errorMessage: PairingError.wrongSensorType.localizedDescription)
+-                                            self.sendError(PairingError.noSensorData)
+-                                            return
+-                                        }
+-                                        
+-                                        
+-
+-                                        do {
+-                                            let decryptedBytes = try Libre2.decryptFRAM(type: sensorType, id: [UInt8](sensorUID), info: patchInfo, data: [UInt8](fram))
+-
+-                                            self.sendUpdate(SensorPairingInfo(uuid: sensorUID, patchInfo: patchInfo, fram: Data(decryptedBytes), streamingEnabled: streamingEnabled, macAddress: macAddress))
+-                                            session.invalidate()
+-                                            return
+-                                        } catch {
+-                                            print("problem decrypting")
+-                                            session.invalidate(errorMessage: PairingError.decryptionError.localizedDescription)
+-                                            self.sendError(PairingError.decryptionError)
+-                                        }
+-                                    }
+-                                }
+-                            }
+-                        }
+-                    }
+-                }
+-            }
+-        }
+-    }
+-
+-    private func readRaw(_ address: UInt16, _ bytes: Int, buffer: Data = Data(), tag: NFCISO15693Tag, handler: @escaping (UInt16, Data, Error?) -> Void) {
+-        
+-        var buffer = buffer
+-        let addressToRead = address + UInt16(buffer.count)
+-
+-        var remainingBytes = bytes
+-        let bytesToRead = remainingBytes > 24 ? 24 : bytes
+-
+-        var remainingWords = bytes / 2
+-        if bytes % 2 == 1 || (bytes % 2 == 0 && addressToRead % 2 == 1) { remainingWords += 1 }
+-        let wordsToRead = UInt8(remainingWords > 12 ? 12 : remainingWords) // real limit is 15
+-
+-        // this is for libre 2 only, ignoring other libre types
+-        let readRawCommand = NFCCommand(code: 0xB3, parameters: Data([UInt8(addressToRead & 0x00FF), UInt8(addressToRead >> 8), wordsToRead]))
+-
+-        tag.customCommand(requestFlags: .highDataRate, customCommandCode: Int(readRawCommand.code), customRequestParameters: readRawCommand.parameters) { response, error in
+-            var data = response
+-
+-            if error != nil {
+-                remainingBytes = 0
+-            } else {
+-                if addressToRead % 2 == 1 { data = data.subdata(in: 1 ..< data.count) }
+-                if data.count - Int(bytesToRead) == 1 { data = data.subdata(in: 0 ..< data.count - 1) }
+-            }
+-
+-            buffer += data
+-            remainingBytes -= data.count
+-
+-            if remainingBytes == 0 {
+-                handler(address, buffer, error)
+-            } else {
+-                self.readRaw(address, remainingBytes, buffer: buffer, tag: tag) { address, data, error in handler(address, data, error) }
+-            }
+-        }
+-    }
+-
+-    private func writeRaw(_ address: UInt16, _ data: Data, tag: NFCISO15693Tag, handler: @escaping (UInt16, Data, Error?) -> Void) {
+-        let backdoor = "deadbeef".utf8
+-
+-        tag.customCommand(requestFlags: .highDataRate, customCommandCode: 0xA4, customRequestParameters: Data(backdoor)) {
+-            _, error in
+-
+-            let addressToRead = (address / 8) * 8
+-            let startOffset = Int(address % 8)
+-            let endAddressToRead = ((Int(address) + data.count - 1) / 8) * 8 + 7
+-            let blocksToRead = (endAddressToRead - Int(addressToRead)) / 8 + 1
+-
+-            self.readRaw(addressToRead, blocksToRead * 8, tag: tag) { _, readData, error in
+-                if error != nil {
+-                    handler(address, data, error)
+-                    return
+-                }
+-
+-                var bytesToWrite = readData
+-                bytesToWrite.replaceSubrange(startOffset ..< startOffset + data.count, with: data)
+-
+-                let startBlock = Int(addressToRead / 8)
+-                let blocks = bytesToWrite.count / 8
+-
+-                if address < 0xF860 { // lower than FRAM blocks
+-                    for i in 0 ..< blocks {
+-                        let blockToWrite = bytesToWrite[i * 8 ... i * 8 + 7]
+-
+-                        // FIXME: doesn't work as the custom commands C1 or A5 for other chips
+-                        tag.extendedWriteSingleBlock(requestFlags: .highDataRate, blockNumber: startBlock + i, dataBlock: blockToWrite) { error in
+-                            if error != nil {
+-                                if i != blocks - 1 { return }
+-                            }
+-
+-                            if i == blocks - 1 {
+-                                tag.customCommand(requestFlags: .highDataRate, customCommandCode: 0xA2, customRequestParameters: Data(backdoor)) { _, error in
+-                                    handler(address, data, error)
+-                                }
+-                            }
+-                        }
+-                    }
+-
+-                } else { // address >= 0xF860: write to FRAM blocks
+-                    let requestBlocks = 2 // 3 doesn't work
+-                    let requests = Int(ceil(Double(blocks) / Double(requestBlocks)))
+-                    let remainder = blocks % requestBlocks
+-                    var blocksToWrite = [Data](repeating: Data(), count: blocks)
+-
+-                    for i in 0 ..< blocks {
+-                        blocksToWrite[i] = Data(bytesToWrite[i * 8 ... i * 8 + 7])
+-                    }
+-
+-                    for i in 0 ..< requests {
+-                        let startIndex = startBlock - 0xF860 / 8 + i * requestBlocks
+-                        let endIndex = startIndex + (i == requests - 1 ? (remainder == 0 ? requestBlocks : remainder) : requestBlocks) - (requestBlocks > 1 ? 1 : 0)
+-                        let blockRange = NSRange(UInt8(startIndex) ... UInt8(endIndex))
+-
+-                        var dataBlocks = [Data]()
+-                        for j in startIndex ... endIndex { dataBlocks.append(blocksToWrite[j - startIndex]) }
+-
+-                        // TODO: write to 16-bit addresses as the custom cummand C4 for other chips
+-                        tag.writeMultipleBlocks(requestFlags: [.highDataRate, .address], blockRange: blockRange, dataBlocks: dataBlocks) { error in // TEST
+-                            if error != nil {
+-                                if i != requests - 1 { return }
+-                            }
+-
+-                            if i == requests - 1 {
+-                                // Lock
+-                                tag.customCommand(requestFlags: .highDataRate, customCommandCode: 0xA2, customRequestParameters: Data(backdoor)) {
+-                                    _, error in
+-
+-                                    handler(address, data, error)
+-                                }
+-                            }
+-                        }
+-                    }
+-                }
+-            }
+-        }
+-    }
+-
+-    private func nfcCommand(_ code: Subcommand, unlockCode: UInt32, patchInfo: Data, sensorUID: Data) -> NFCCommand {
+-        var b: [UInt8] = []
+-        var y: UInt16
+-
+-        if code == .enableStreaming {
+-            // Enables Bluetooth on Libre 2. Returns peripheral MAC address to connect to.
+-            // unlockCode could be any 32 bit value. The unlockCode and sensor Uid / patchInfo
+-            // will have also to be provided to the login function when connecting to peripheral.
+-            b = [UInt8(unlockCode & 0xFF), UInt8((unlockCode >> 8) & 0xFF), UInt8((unlockCode >> 16) & 0xFF), UInt8((unlockCode >> 24) & 0xFF)]
+-            y = UInt16(patchInfo[4...5]) ^ UInt16(b[1], b[0])
+-        } else {
+-            y = 0x1b6a
+-        }
+-
+-        let d = Libre2.usefulFunction(id: [UInt8](sensorUID), x: UInt16(code.rawValue), y: y)
+-
+-        var parameters = Data([code.rawValue])
+-
+-        if code == .enableStreaming {
+-            parameters += b
+-        }
+-
+-        parameters += d
+-
+-        return NFCCommand(code: 0xA1, parameters: parameters)
+-    }
+-}
+-
+-extension UInt16 {
+-    init(_ high: UInt8, _ low: UInt8) {
+-        self = UInt16(high) << 8 + UInt16(low)
+-    }
+-
+-    init(_ data: Data) {
+-        self = UInt16(data[data.startIndex + 1]) << 8 + UInt16(data[data.startIndex])
+-    }
+-}
+-
+-private struct NFCCommand {
+-    let code: UInt8
+-    let parameters: Data
+-}
+-
+-private enum Subcommand: UInt8, CustomStringConvertible {
+-    case activate = 0x1b
+-    case enableStreaming = 0x1e
+-    case unknown0x1a = 0x1a
+-    case unknown0x1c = 0x1c
+-    case unknown0x1d = 0x1d
+-    case unknown0x1f = 0x1f
+-
+-    var description: String {
+-        switch self {
+-        case .activate: return "activate"
+-        case .enableStreaming: return "enable BLE streaming"
+-        default: return "[unknown: 0x\(String(format: "%x", rawValue))]"
+-        }
+-    }
+-}
++//
++//  SensorPairingService.swift
++//  LibreDirect
++//
++//  Created by Reimar Metzen on 06.07.21.
++//
++
++import Foundation
++import Combine
++import CoreNFC
++
++public enum PairingError: Error {
++    case noTagInfo
++    case noSensorData
++    case wrongSensorType
++    case decryptionError
++    case noPatchInfo
++    case nfcNotSupported
++}
++
++extension PairingError: LocalizedError {
++    public var errorDescription: String? {
++        switch self {
++        case .noTagInfo:
++            return LocalizedString("Could not get tag info", comment: "error description for PairingError.noTagInfo")
++        case .noSensorData:
++            return LocalizedString("Could not get sensor data", comment: "error description for PairingError.noSensorData")
++        case .wrongSensorType:
++            return LocalizedString("Wrong sensor type detected", comment: "error description for PairingError.wrongSensorType")
++        case .decryptionError:
++            return LocalizedString("Could not decrypt sensor contents", comment: "error description for PairingError.decryptionError")
++        case .noPatchInfo:
++            return LocalizedString("Could not get patch info", comment: "error description for PairingError.noPatchInfo")
++        case .nfcNotSupported:
++            return LocalizedString("Phone NFC not supported!", comment: "error description for PairingError.nfcNotSupported")
++        }
++    }
++
++    public var recoverySuggestion: String? {
++        switch self {
++        case .nfcNotSupported:
++            return LocalizedString("Your phone or app is not enabled for NFC communications, which is needed to pair to libre2 sensors", comment: "Recovery suggestion for PairingError.nfcNotSupported")
++        default:
++            return nil
++        }
++    }
++}
++
++public class SensorPairingService: NSObject, NFCTagReaderSessionDelegate, SensorPairingProtocol {
++    private var session: NFCTagReaderSession?
++    private var readingsSubject = PassthroughSubject<SensorPairingInfo, Never>()
++    private var errorSubject  = PassthroughSubject<Error, Never>()
++
++    private let nfcQueue = DispatchQueue(label: "libre-direct.nfc-queue")
++    private let accessQueue = DispatchQueue(label: "libre-direct.nfc-access-queue")
++
++    private let unlockCode: UInt32 = 42 // 42
++
++    public var onCancel: (() -> Void)?
++
++    public func pairSensor() throws {
++        if !Features.phoneNFCAvailable {
++            throw PairingError.nfcNotSupported
++        }
++        print("Asked to pair sensor! phoneNFCAvailable: \(Features.phoneNFCAvailable)")
++
++        if NFCTagReaderSession.readingAvailable {
++            accessQueue.async {
++                self.session = NFCTagReaderSession(pollingOption: .iso15693, delegate: self, queue: self.nfcQueue)
++                self.session?.alertMessage = LocalizedString("Hold the top of your iPhone near the sensor to pair", comment: "")
++                self.session?.begin()
++            }
++        }
++    }
++
++    public var publisher: AnyPublisher<SensorPairingInfo, Never> {
++        readingsSubject.eraseToAnyPublisher()
++    }
++    
++    public var errorPublisher: AnyPublisher<Error, Never> {
++        errorSubject.eraseToAnyPublisher()
++    }
++    
++    private func sendError(_ error: Error) {
++        DispatchQueue.main.async { [weak self] in
++            self?.errorSubject.send(error)
++        }
++    }
++
++    private func sendUpdate(_ info: SensorPairingInfo) {
++        DispatchQueue.main.async { [weak self] in
++            self?.readingsSubject.send(info)
++        }
++    }
++
++    public func tagReaderSessionDidBecomeActive(_ session: NFCTagReaderSession) {
++    }
++
++    public func tagReaderSession(_ session: NFCTagReaderSession, didInvalidateWithError error: Error) {
++        if let error = error as? NFCReaderError, error.code != .readerSessionInvalidationErrorUserCanceled {
++            session.invalidate(errorMessage: "Connection failure: \(error.localizedDescription)")
++            self.sendError(error)
++        }
++
++        self.onCancel?()
++    }
++
++    public func tagReaderSession(_ session: NFCTagReaderSession, didDetect tags: [NFCTag]) {
++        guard let firstTag = tags.first else { return }
++        guard case .iso15693(let tag) = firstTag else { return }
++
++        let blocks = 43
++        let requestBlocks = 3
++
++        let requests = Int(ceil(Double(blocks) / Double(requestBlocks)))
++        let remainder = blocks % requestBlocks
++        var dataArray = [Data](repeating: Data(), count: blocks)
++
++        session.connect(to: firstTag) { error in
++            if error != nil {
++                return
++            }
++
++            tag.getSystemInfo(requestFlags: [.address, .highDataRate]) { result in
++                switch result {
++                case .failure:
++                    session.invalidate(errorMessage: PairingError.noTagInfo.localizedDescription)
++                    self.sendError(PairingError.noTagInfo)
++                    return
++                case .success:
++                    tag.customCommand(requestFlags: .highDataRate, customCommandCode: 0xA1, customRequestParameters: Data()) { response, error in
++
++                        for i in 0 ..< requests {
++                            tag.readMultipleBlocks(
++                                requestFlags: [.highDataRate, .address],
++                                // swiftlint:disable:next line_length
++                                blockRange: NSRange(UInt8(i * requestBlocks) ... UInt8(i * requestBlocks + (i == requests - 1 ? (remainder == 0 ? requestBlocks : remainder) : requestBlocks) - (requestBlocks > 1 ? 1 : 0)))
++                                
++                            ) { blockArray, error in
++                                if error != nil {
++                                    if i != requests - 1 { return }
++                                } else {
++                                    for j in 0 ..< blockArray.count {
++                                        dataArray[i * requestBlocks + j] = blockArray[j]
++                                    }
++                                }
++
++                                if i == requests - 1 {
++                                    var fram = Data()
++
++                                    for (_, data) in dataArray.enumerated() {
++                                        if data.count > 0 {
++                                            fram.append(data)
++                                        }
++                                    }
++
++                                    // get sensorUID and patchInfo and send to delegate
++                                    let sensorUID = Data(tag.identifier.reversed())
++                                    let patchInfo = response
++
++                                    // patchInfo should have length 6, which sometimes is not the case, as there are occuring crashes in nfcCommand and Libre2BLEUtilities.streamingUnlockPayload
++                                    guard patchInfo.count >= 6 else {
++                                        session.invalidate(errorMessage: PairingError.noPatchInfo.localizedDescription)
++                                        return
++                                    }
++
++                                    let subCmd: Subcommand = .enableStreaming
++                                    let cmd = self.nfcCommand(subCmd, unlockCode: self.unlockCode, patchInfo: patchInfo, sensorUID: sensorUID)
++
++                                    tag.customCommand(requestFlags: .highDataRate, customCommandCode: Int(cmd.code), customRequestParameters: cmd.parameters) { response, _ in
++                                        var streamingEnabled = false
++                                        var macAddress : String?
++
++                                        if subCmd == .enableStreaming && response.count == 6 {
++                                            streamingEnabled = true
++                                            macAddress = Data(response.reversed()).hexEncodedString().uppercased()
++                                        }
++
++                                        
++
++                                        let patchHex = patchInfo.hexEncodedString()
++                                        let sensorType = SensorType(patchInfo: patchInfo)
++
++                                        print("got patchhex: \(patchHex) and sensorType: \(sensorType), with mac address: \(macAddress)")
++
 +                                        // 2026 "Gen3" secure sensors (BR Libre 2+, patchInfo 0x2B): the
 +                                        // Gen1/Gen2 FRAM token scheme does not apply — run the direct
 +                                        // tag ceremony instead (see Gen3Ceremony).
@@ -376132,181 +376952,249 @@ index ce31cd4..e712931 100644
 +                                            return
 +                                        }
 +
-                                         guard sensorUID.count == 8 && patchInfo.count == 6 && fram.count == 344 else {
-                                             // self.readingsSubject.send(completion: .failure(LibreError.noSensorData))
--                                            session.invalidate(errorMessage: PairingError.noSensorData.localizedDescription)
++                                        guard sensorUID.count == 8 && patchInfo.count == 6 && fram.count == 344 else {
++                                            // self.readingsSubject.send(completion: .failure(LibreError.noSensorData))
 +                                            session.invalidate(errorMessage: PairingError.noSensorData.localizedDescription + " (uid=\(sensorUID.hexEncodedString()) patchInfo=\(patchHex) fram=\(fram.count))")
-                                             self.sendError(PairingError.noSensorData)
-                                             return
-                                         }
-                                         
-                                         guard sensorType == .libre2  else {
--                                            session.invalidate(errorMessage: PairingError.wrongSensorType.localizedDescription)
++                                            self.sendError(PairingError.noSensorData)
++                                            return
++                                        }
++                                        
++                                        guard sensorType == .libre2  else {
 +                                            session.invalidate(errorMessage: PairingError.wrongSensorType.localizedDescription + " (uid=\(sensorUID.hexEncodedString()) patchInfo=\(patchHex) type=\(sensorType))")
-                                             self.sendError(PairingError.noSensorData)
-                                             return
-                                         }
++                                            self.sendError(PairingError.noSensorData)
++                                            return
++                                        }
++                                        
++                                        
++
++                                        do {
++                                            let decryptedBytes = try Libre2.decryptFRAM(type: sensorType, id: [UInt8](sensorUID), info: patchInfo, data: [UInt8](fram))
++
++                                            self.sendUpdate(SensorPairingInfo(uuid: sensorUID, patchInfo: patchInfo, fram: Data(decryptedBytes), streamingEnabled: streamingEnabled, macAddress: macAddress))
++                                            session.invalidate()
++                                            return
++                                        } catch {
++                                            print("problem decrypting")
++                                            session.invalidate(errorMessage: PairingError.decryptionError.localizedDescription)
++                                            self.sendError(PairingError.decryptionError)
++                                        }
++                                    }
++                                }
++                            }
++                        }
++                    }
++                }
++            }
++        }
++    }
++
++    private func readRaw(_ address: UInt16, _ bytes: Int, buffer: Data = Data(), tag: NFCISO15693Tag, handler: @escaping (UInt16, Data, Error?) -> Void) {
++        
++        var buffer = buffer
++        let addressToRead = address + UInt16(buffer.count)
++
++        var remainingBytes = bytes
++        let bytesToRead = remainingBytes > 24 ? 24 : bytes
++
++        var remainingWords = bytes / 2
++        if bytes % 2 == 1 || (bytes % 2 == 0 && addressToRead % 2 == 1) { remainingWords += 1 }
++        let wordsToRead = UInt8(remainingWords > 12 ? 12 : remainingWords) // real limit is 15
++
++        // this is for libre 2 only, ignoring other libre types
++        let readRawCommand = NFCCommand(code: 0xB3, parameters: Data([UInt8(addressToRead & 0x00FF), UInt8(addressToRead >> 8), wordsToRead]))
++
++        tag.customCommand(requestFlags: .highDataRate, customCommandCode: Int(readRawCommand.code), customRequestParameters: readRawCommand.parameters) { response, error in
++            var data = response
++
++            if error != nil {
++                remainingBytes = 0
++            } else {
++                if addressToRead % 2 == 1 { data = data.subdata(in: 1 ..< data.count) }
++                if data.count - Int(bytesToRead) == 1 { data = data.subdata(in: 0 ..< data.count - 1) }
++            }
++
++            buffer += data
++            remainingBytes -= data.count
++
++            if remainingBytes == 0 {
++                handler(address, buffer, error)
++            } else {
++                self.readRaw(address, remainingBytes, buffer: buffer, tag: tag) { address, data, error in handler(address, data, error) }
++            }
++        }
++    }
++
++    private func writeRaw(_ address: UInt16, _ data: Data, tag: NFCISO15693Tag, handler: @escaping (UInt16, Data, Error?) -> Void) {
++        let backdoor = "deadbeef".utf8
++
++        tag.customCommand(requestFlags: .highDataRate, customCommandCode: 0xA4, customRequestParameters: Data(backdoor)) {
++            _, error in
++
++            let addressToRead = (address / 8) * 8
++            let startOffset = Int(address % 8)
++            let endAddressToRead = ((Int(address) + data.count - 1) / 8) * 8 + 7
++            let blocksToRead = (endAddressToRead - Int(addressToRead)) / 8 + 1
++
++            self.readRaw(addressToRead, blocksToRead * 8, tag: tag) { _, readData, error in
++                if error != nil {
++                    handler(address, data, error)
++                    return
++                }
++
++                var bytesToWrite = readData
++                bytesToWrite.replaceSubrange(startOffset ..< startOffset + data.count, with: data)
++
++                let startBlock = Int(addressToRead / 8)
++                let blocks = bytesToWrite.count / 8
++
++                if address < 0xF860 { // lower than FRAM blocks
++                    for i in 0 ..< blocks {
++                        let blockToWrite = bytesToWrite[i * 8 ... i * 8 + 7]
++
++                        // FIXME: doesn't work as the custom commands C1 or A5 for other chips
++                        tag.extendedWriteSingleBlock(requestFlags: .highDataRate, blockNumber: startBlock + i, dataBlock: blockToWrite) { error in
++                            if error != nil {
++                                if i != blocks - 1 { return }
++                            }
++
++                            if i == blocks - 1 {
++                                tag.customCommand(requestFlags: .highDataRate, customCommandCode: 0xA2, customRequestParameters: Data(backdoor)) { _, error in
++                                    handler(address, data, error)
++                                }
++                            }
++                        }
++                    }
++
++                } else { // address >= 0xF860: write to FRAM blocks
++                    let requestBlocks = 2 // 3 doesn't work
++                    let requests = Int(ceil(Double(blocks) / Double(requestBlocks)))
++                    let remainder = blocks % requestBlocks
++                    var blocksToWrite = [Data](repeating: Data(), count: blocks)
++
++                    for i in 0 ..< blocks {
++                        blocksToWrite[i] = Data(bytesToWrite[i * 8 ... i * 8 + 7])
++                    }
++
++                    for i in 0 ..< requests {
++                        let startIndex = startBlock - 0xF860 / 8 + i * requestBlocks
++                        let endIndex = startIndex + (i == requests - 1 ? (remainder == 0 ? requestBlocks : remainder) : requestBlocks) - (requestBlocks > 1 ? 1 : 0)
++                        let blockRange = NSRange(UInt8(startIndex) ... UInt8(endIndex))
++
++                        var dataBlocks = [Data]()
++                        for j in startIndex ... endIndex { dataBlocks.append(blocksToWrite[j - startIndex]) }
++
++                        // TODO: write to 16-bit addresses as the custom cummand C4 for other chips
++                        tag.writeMultipleBlocks(requestFlags: [.highDataRate, .address], blockRange: blockRange, dataBlocks: dataBlocks) { error in // TEST
++                            if error != nil {
++                                if i != requests - 1 { return }
++                            }
++
++                            if i == requests - 1 {
++                                // Lock
++                                tag.customCommand(requestFlags: .highDataRate, customCommandCode: 0xA2, customRequestParameters: Data(backdoor)) {
++                                    _, error in
++
++                                    handler(address, data, error)
++                                }
++                            }
++                        }
++                    }
++                }
++            }
++        }
++    }
++
++    private func nfcCommand(_ code: Subcommand, unlockCode: UInt32, patchInfo: Data, sensorUID: Data) -> NFCCommand {
++        var b: [UInt8] = []
++        var y: UInt16
++
++        if code == .enableStreaming {
++            // Enables Bluetooth on Libre 2. Returns peripheral MAC address to connect to.
++            // unlockCode could be any 32 bit value. The unlockCode and sensor Uid / patchInfo
++            // will have also to be provided to the login function when connecting to peripheral.
++            b = [UInt8(unlockCode & 0xFF), UInt8((unlockCode >> 8) & 0xFF), UInt8((unlockCode >> 16) & 0xFF), UInt8((unlockCode >> 24) & 0xFF)]
++            y = UInt16(patchInfo[4...5]) ^ UInt16(b[1], b[0])
++        } else {
++            y = 0x1b6a
++        }
++
++        let d = Libre2.usefulFunction(id: [UInt8](sensorUID), x: UInt16(code.rawValue), y: y)
++
++        var parameters = Data([code.rawValue])
++
++        if code == .enableStreaming {
++            parameters += b
++        }
++
++        parameters += d
++
++        return NFCCommand(code: 0xA1, parameters: parameters)
++    }
++}
++
++extension UInt16 {
++    init(_ high: UInt8, _ low: UInt8) {
++        self = UInt16(high) << 8 + UInt16(low)
++    }
++
++    init(_ data: Data) {
++        self = UInt16(data[data.startIndex + 1]) << 8 + UInt16(data[data.startIndex])
++    }
++}
++
++private struct NFCCommand {
++    let code: UInt8
++    let parameters: Data
++}
++
++private enum Subcommand: UInt8, CustomStringConvertible {
++    case activate = 0x1b
++    case enableStreaming = 0x1e
++    case unknown0x1a = 0x1a
++    case unknown0x1c = 0x1c
++    case unknown0x1d = 0x1d
++    case unknown0x1f = 0x1f
++
++    var description: String {
++        switch self {
++        case .activate: return "activate"
++        case .enableStreaming: return "enable BLE streaming"
++        default: return "[unknown: 0x\(String(format: "%x", rawValue))]"
++        }
++    }
++}
 diff --git a/LibreTransmitter.xcodeproj/project.pbxproj b/LibreTransmitter.xcodeproj/project.pbxproj
-index 2e9477d..7643e87 100644
+index 2e9477d..c9f40e4 100644
 --- a/LibreTransmitter.xcodeproj/project.pbxproj
 +++ b/LibreTransmitter.xcodeproj/project.pbxproj
-@@ -134,6 +134,14 @@
- 		C1C318D72A47638E00C6F29F /* MockSensorPairingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1BDBAFE2A44FFD800A787D1 /* MockSensorPairingService.swift */; };
- 		C1C318D92A478E0000C6F29F /* HKUnit.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C318D82A478E0000C6F29F /* HKUnit.swift */; };
- 		C1D819B32AC9B60100C9416E /* LimitedQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27850BA2256724EF0020D109 /* LimitedQueue.swift */; };
-+		062ECA4852188B5C60C6788D /* gen2elf.c in Sources */ = {isa = PBXBuildFile; fileRef = 55CC4EC2F0954E5AE22C7C56 /* gen2elf.c */; };
-+B50682C8656A51C42E9C5E72 /* EngineBlob.c in Sources */ = {isa = PBXBuildFile; fileRef = 3F5B83CD21C3220F7516C288 /* EngineBlob.c */; };
-+8C3FD9127255294ADDA83761 /* Gen3Engine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42B43ACD22A0E00B53E74796 /* Gen3Engine.swift */; };
-+BB7340DC71638B60BD990A9A /* Gen2Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55CC4EC2F0954E5AE22C7C56 /* gen2elf.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = gen2elf.c; sourceTree = "<group>"; };
-+3F5B83CD21C3220F7516C288 /* EngineBlob.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = EngineBlob.c; sourceTree = "<group>"; };
-+42B43ACD22A0E00B53E74796 /* Gen3Engine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gen3Engine.swift; sourceTree = "<group>"; };
-+48469773BD9E97344629FFEB /* Gen2Session.swift */; };
-+		AB208E3C676C060958EB5D47 /* Gen3Ceremony.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F80CE8C0CFA55B5391E2E3 /* Gen3Ceremony.swift */; };
- /* End PBXBuildFile section */
- 
- /* Begin PBXContainerItemProxy section */
-@@ -202,6 +210,8 @@
- /* End PBXCopyFilesBuildPhase section */
- 
- /* Begin PBXFileReference section */
-+		48469773BD9E97344629FFEB /* Gen2Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gen2Session.swift; sourceTree = "<group>"; };
-+		A3F80CE8C0CFA55B5391E2E3 /* Gen3Ceremony.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gen3Ceremony.swift; sourceTree = "<group>"; };
- 		2709A6F229E5E0D3004355A3 /* FakeSensorPairingData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeSensorPairingData.swift; sourceTree = "<group>"; };
- 		270C1428266047490063405B /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
- 		271A39F42975844B0005FEDA /* NotificationHelperOverride.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHelperOverride.swift; sourceTree = "<group>"; };
-@@ -373,6 +383,7 @@
- 			children = (
- 				2746C74426DF636900E31BD9 /* SensorPairingService.swift */,
- 				2746C74626DF63C800E31BD9 /* SensorPairing.swift */,
-+			48469773BD9E97344629FFEB /* BB7340DC71638B60BD990A9A */, A3F80CE8C0CFA55B5391E2E3 /* AB208E3C676C060958EB5D47 */,
- 			);
- 			path = SensorPairing;
- 			sourceTree = "<group>";
-@@ -997,7 +1008,13 @@
+@@ -992,6 +992,9 @@
+ 				27DD8F26268FA75A00649010 /* SensorInfo.swift in Sources */,
+ 				27850DC425672F640020D109 /* GlucoseSmoothing.swift in Sources */,
+ 				27F93B2A2816B7FF00EE39A7 /* LibreTransmitterManager+Libre2EU.swift in Sources */,
++				E075CC7852226DCE41C2F453 /* Gen3Engine.swift in Sources */,
++				B7F991D6713D878AA629E5D0 /* EngineBlob.c in Sources */,
++				96CD7BA8028F7AC11A3023A3 /* gen2elf.c in Sources */,
+ 				27850DCF25672F780020D109 /* CRC.swift in Sources */,
+ 				2764E86126FC6DC10016A585 /* Features.swift in Sources */,
  				27ED67B82698EF38003E5DAB /* AlarmStatus.swift in Sources */,
- 				27850CFD25672C0C0020D109 /* HKUnit.swift in Sources */,
- 				27850CF925672C0C0020D109 /* UIApplication+metadata.swift in Sources */,
--			);
-+			
-+				BB7340DC71638B60BD990A9A /* Gen2Session.swift in Sources */,
-+				8C3FD9127255294ADDA83761 /* Gen3Engine.swift in Sources */,
-+				B50682C8656A51C42E9C5E72 /* EngineBlob.c in Sources */,
-+				062ECA4852188B5C60C6788D /* gen2elf.c in Sources */,
-+				AB208E3C676C060958EB5D47 /* Gen3Ceremony.swift in Sources */,
-+				);
- 			runOnlyForDeploymentPostprocessing = 0;
- 		};
- 		43A8EC7D210E664300A81379 /* Sources */ = {
-@@ -1146,7 +1163,9 @@
- 				GCC_WARN_UNUSED_LABEL = YES;
- 				GCC_WARN_UNUSED_PARAMETER = YES;
- 				GCC_WARN_UNUSED_VARIABLE = YES;
--				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
-+				SWIFT_INCLUDE_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                HEADER_SEARCH_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                IPHONEOS_DEPLOYMENT_TARGET = 15.1;
- 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
- 				LOCALIZED_STRING_MACRO_NAMES = (
- 					NSLocalizedString,
-@@ -1212,7 +1231,9 @@
- 				GCC_WARN_UNUSED_LABEL = YES;
- 				GCC_WARN_UNUSED_PARAMETER = YES;
- 				GCC_WARN_UNUSED_VARIABLE = YES;
--				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
-+				SWIFT_INCLUDE_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                HEADER_SEARCH_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                IPHONEOS_DEPLOYMENT_TARGET = 15.1;
- 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
- 				LOCALIZED_STRING_MACRO_NAMES = (
- 					NSLocalizedString,
-@@ -1247,7 +1268,9 @@
+@@ -1246,6 +1249,8 @@
+ 				ENABLE_MODULE_VERIFIER = "$(CLANG_MODULES_ENABLE_VERIFIER_TOOL)";
  				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
  				INFOPLIST_FILE = LibreTransmitter/Info.plist;
++				SWIFT_INCLUDE_PATHS = ("$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
++				HEADER_SEARCH_PATHS = ("$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
  				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
--				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
-+				SWIFT_INCLUDE_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                HEADER_SEARCH_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
  				LD_RUNPATH_SEARCH_PATHS = (
- 					"$(inherited)",
- 					"@executable_path/Frameworks",
-@@ -1280,7 +1303,9 @@
+@@ -1279,6 +1284,8 @@
+ 				ENABLE_MODULE_VERIFIER = "$(CLANG_MODULES_ENABLE_VERIFIER_TOOL)";
  				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
  				INFOPLIST_FILE = LibreTransmitter/Info.plist;
++				SWIFT_INCLUDE_PATHS = ("$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
++				HEADER_SEARCH_PATHS = ("$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
  				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
--				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
-+				SWIFT_INCLUDE_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                HEADER_SEARCH_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
  				LD_RUNPATH_SEARCH_PATHS = (
- 					"$(inherited)",
- 					"@executable_path/Frameworks",
-@@ -1320,7 +1345,9 @@
- 				GCC_C_LANGUAGE_STANDARD = gnu11;
- 				INFOPLIST_FILE = LibreTransmitterUI/Info.plist;
- 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
--				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
-+				SWIFT_INCLUDE_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                HEADER_SEARCH_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                IPHONEOS_DEPLOYMENT_TARGET = 15.1;
- 				LD_RUNPATH_SEARCH_PATHS = (
- 					"$(inherited)",
- 					"@executable_path/Frameworks",
-@@ -1361,7 +1388,9 @@
- 				GCC_C_LANGUAGE_STANDARD = gnu11;
- 				INFOPLIST_FILE = LibreTransmitterUI/Info.plist;
- 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
--				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
-+				SWIFT_INCLUDE_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                HEADER_SEARCH_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                IPHONEOS_DEPLOYMENT_TARGET = 15.1;
- 				LD_RUNPATH_SEARCH_PATHS = (
- 					"$(inherited)",
- 					"@executable_path/Frameworks",
-@@ -1394,7 +1423,9 @@
- 				GCC_C_LANGUAGE_STANDARD = gnu11;
- 				INFOPLIST_FILE = LibreTransmitterPlugin/Info.plist;
- 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
--				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
-+				SWIFT_INCLUDE_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                HEADER_SEARCH_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                IPHONEOS_DEPLOYMENT_TARGET = 15.1;
- 				LD_RUNPATH_SEARCH_PATHS = (
- 					"$(inherited)",
- 					"@executable_path/Frameworks",
-@@ -1432,7 +1463,9 @@
- 				GCC_C_LANGUAGE_STANDARD = gnu11;
- 				INFOPLIST_FILE = LibreTransmitterPlugin/Info.plist;
- 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
--				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
-+				SWIFT_INCLUDE_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                HEADER_SEARCH_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                IPHONEOS_DEPLOYMENT_TARGET = 15.1;
- 				LD_RUNPATH_SEARCH_PATHS = (
- 					"$(inherited)",
- 					"@executable_path/Frameworks",
-@@ -1469,7 +1502,9 @@
- 				INFOPLIST_FILE = Info.plist;
- 				INFOPLIST_KEY_NSPrincipalClass = LibreDemoPlugin;
- 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
--				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
-+				SWIFT_INCLUDE_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                HEADER_SEARCH_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                IPHONEOS_DEPLOYMENT_TARGET = 15.1;
- 				LD_RUNPATH_SEARCH_PATHS = (
- 					"$(inherited)",
- 					"@executable_path/Frameworks",
-@@ -1508,7 +1543,9 @@
- 				INFOPLIST_FILE = Info.plist;
- 				INFOPLIST_KEY_NSPrincipalClass = LibreDemoPlugin;
- 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
--				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
-+				SWIFT_INCLUDE_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                HEADER_SEARCH_PATHS = ("$$(SRCROOT)/LibreSensor/SensorPairing/Engine",);
-+                IPHONEOS_DEPLOYMENT_TARGET = 15.1;
- 				LD_RUNPATH_SEARCH_PATHS = (
- 					"$(inherited)",
- 					"@executable_path/Frameworks",
 diff --git a/LibreTransmitter/LibreTransmitterManagerV3.swift b/LibreTransmitter/LibreTransmitterManagerV3.swift
 index 93973a3..a2f2113 100644
 --- a/LibreTransmitter/LibreTransmitterManagerV3.swift
